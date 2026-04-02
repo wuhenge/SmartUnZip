@@ -1,0 +1,28 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.exe
+*.pdb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build
+/dist/
+*.zip
+*.tar.gz
+
+# Config generated at runtime
+appsettings.json
+
+# Cargo
+Cargo.lock
