@@ -46,14 +46,26 @@ impl ConsoleUi {
         eprintln!("  {} {}", "[-]".red().bold(), msg.red());
     }
 
-    pub fn attempt_password(&self, index: usize, total: usize, password: &str) {
+    pub fn attempt_password(
+        &self,
+        index: usize,
+        total: usize,
+        password: &str,
+        debug_cmd: Option<&str>,
+    ) {
         let frames = ["..", ".+", "+.", "+-"];
         let spinner_idx = self.attempt_spinner.fetch_add(1, Ordering::Relaxed);
         let spinner_str = frames[spinner_idx % frames.len()];
         let masked = mask_password(password);
-        self.inline(&format!(
-            "\r  {spinner_str} [{index}/{total}] 密码: {masked}"
-        ));
+        if let Some(cmd) = debug_cmd {
+            self.inline(&format!(
+                "\r  {spinner_str} [{index}/{total}] 密码: {masked} | {cmd}"
+            ));
+        } else {
+            self.inline(&format!(
+                "\r  {spinner_str} [{index}/{total}] 密码: {masked}"
+            ));
+        }
     }
 
     pub fn progress(

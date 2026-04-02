@@ -11,6 +11,60 @@ pub struct AppSettings {
     pub delete_files: Vec<String>,
     #[serde(rename = "DeleteFolders", default)]
     pub delete_folders: Vec<String>,
+    #[serde(rename = "ExtractNestedArchives", default = "default_extract_nested")]
+    pub extract_nested_archives: bool,
+    #[serde(rename = "NestedArchiveDepth", default = "default_nested_depth")]
+    pub nested_archive_depth: u32,
+    #[serde(rename = "AutoExit", default = "default_auto_exit")]
+    pub auto_exit: bool,
+    #[serde(
+        rename = "ExtractNestedFolders",
+        default = "default_extract_nested_folders"
+    )]
+    pub extract_nested_folders: bool,
+    #[serde(rename = "DebugMode", default = "default_debug_mode")]
+    pub debug_mode: bool,
+    #[serde(
+        rename = "DeleteEmptyFolders",
+        default = "default_delete_empty_folders"
+    )]
+    pub delete_empty_folders: bool,
+    #[serde(rename = "CreateFolderThreshold", default = "default_create_folder_threshold")]
+    pub create_folder_threshold: u32,
+    #[serde(rename = "FlattenWrapperFolder", default = "default_flatten_wrapper_folder")]
+    pub flatten_wrapper_folder: bool,
+}
+
+fn default_extract_nested() -> bool {
+    false
+}
+
+fn default_nested_depth() -> u32 {
+    1
+}
+
+fn default_auto_exit() -> bool {
+    false
+}
+
+fn default_extract_nested_folders() -> bool {
+    false
+}
+
+fn default_debug_mode() -> bool {
+    false
+}
+
+fn default_delete_empty_folders() -> bool {
+    false
+}
+
+fn default_create_folder_threshold() -> u32 {
+    1
+}
+
+fn default_flatten_wrapper_folder() -> bool {
+    false
 }
 
 #[derive(Deserialize)]
@@ -34,7 +88,15 @@ const DEFAULT_CONFIG: &str = r#"{
     ],
     "DeleteFolders": [
       "说明"
-    ]
+    ],
+    "ExtractNestedArchives": false,
+    "NestedArchiveDepth": 1,
+    "AutoExit": false,
+    "ExtractNestedFolders": false,
+    "DebugMode": false,
+    "DeleteEmptyFolders": false,
+    "CreateFolderThreshold": 1,
+    "FlattenWrapperFolder": false
   }
 }
 "#;
@@ -54,7 +116,15 @@ const DEFAULT_CONFIG: &str = r#"{
     ],
     "DeleteFolders": [
       "说明"
-    ]
+    ],
+    "ExtractNestedArchives": false,
+    "NestedArchiveDepth": 1,
+    "AutoExit": false,
+    "ExtractNestedFolders": false,
+    "DebugMode": false,
+    "DeleteEmptyFolders": false,
+    "CreateFolderThreshold": 1,
+    "FlattenWrapperFolder": false
   }
 }
 "#;

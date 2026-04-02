@@ -67,6 +67,7 @@ pub fn try_extract(
     seven_zip_path: &str,
     start_time: Instant,
     ui: &Arc<crate::ui::ConsoleUi>,
+    debug: bool,
 ) -> anyhow::Result<bool> {
     let pwd_flag = format!("-p:{password}");
     let list_args = vec!["l", "-list:v", "-y", &pwd_flag, zip_file];
@@ -75,6 +76,15 @@ pub fn try_extract(
 
     if list_result.exit_code != 0 {
         return Ok(false);
+    }
+
+    if debug {
+        let simple_list_args = vec!["l", "-list:s", "-y", &pwd_flag, zip_file];
+        if let Ok(simple_result) = run_capture(seven_zip_path, &simple_list_args) {
+            eprintln!();
+            eprintln!("  [*] [调试] 压缩包目录结构:");
+            print_simple_file_list(&simple_result.stdout);
+        }
     }
 
     if let Some(metrics) = parse_listing_metrics(&list_result.stdout) {
@@ -133,6 +143,9 @@ pub fn parse_listing_metrics(listing: &str) -> Option<ArchiveMetrics> {
             continue;
         }
         if line.contains("Name") && line.contains("Size") && line.to_lowercase().contains("comp") {
+            continue;
+        }
+        if line.contains("files,") {
             continue;
         }
 
@@ -368,4 +381,25 @@ fn measure_folder(folder: &str) -> std::io::Result<(u64, u32)> {
         &mut file_count,
     );
     Ok((total_bytes, file_count))
+}
+
+fn print_simple_file_list(listing: &str) {
+    eprintln!();
+    for line in listing.lines() {
+        let line = line.trim();
+        // 跳过空行和头部信息
+        if line.is_empty()
+            || line.starts_with("----")
+            || line.starts_with("bz ")
+            || line.contains("Bandizip")
+            || line.contains("Copyright")
+            || line.starts_with("Listing archive:")
+            || line.starts_with("Archive format:")
+            || line.contains("files,")
+        {
+            continue;
+        }
+        // 直接输出文件名
+        eprintln!("  {line}");
+    }
 }

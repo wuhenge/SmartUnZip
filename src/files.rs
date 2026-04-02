@@ -1,18 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-const MAX_NESTED_DEPTH: u32 = 5;
-
-pub fn is_archive_file(path: &str) -> bool {
-    Path::new(path)
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| {
-            let ext = ext.to_ascii_lowercase();
-            matches!(ext.as_str(), "zip" | "rar" | "tar" | "7z" | "7z1" | "txt")
-        })
-        .unwrap_or(false)
-}
+const MAX_NESTED_DEPTH_LIMIT: u32 = 10;
 
 pub fn delete_file(
     path: &str,
@@ -69,10 +58,11 @@ pub fn process_temp_folder(
     seven_zip_path: &str,
     config: &crate::config::AppSettings,
     ui: &Arc<crate::ui::ConsoleUi>,
-) {
-    if current_depth > MAX_NESTED_DEPTH {
-        ui.warn(&format!("嵌套深度超限 ({MAX_NESTED_DEPTH}层)，停止递归"));
-        return;
+) -> Option<String> {
+    let max_depth = config.nested_archive_depth.min(MAX_NESTED_DEPTH_LIMIT);
+    if current_depth > max_depth + 1 {
+        ui.warn(&format!("嵌套深度超限 ({max_depth}层)，停止递归"));
+        return None;
     }
 
     if let Ok(entries) = std::fs::read_dir(temp_folder) {
@@ -97,56 +87,148 @@ pub fn process_temp_folder(
     }
 
     if !Path::new(temp_folder).exists() {
-        return;
+        return None;
     }
 
     delete_configured_recursive(temp_folder, config, ui);
 
     if !Path::new(temp_folder).exists() {
-        return;
+        return None;
     }
 
-    let all_files = match walk_all_files(temp_folder) {
-        Some(f) if !f.is_empty() => f,
-        _ => return,
-    };
+    let extracted_path = determine_extracted_path(
+        temp_folder,
+        output_folder,
+        zip_file,
+        current_depth,
+        passwords,
+        seven_zip_path,
+        config,
+        ui,
+    );
 
-    if all_files.len() == 1 && is_archive_file(&all_files[0]) {
-        let archive = &all_files[0];
-        let archive_name = Path::new(archive)
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        handle_nested_archive(
-            archive,
-            &archive_name,
-            temp_folder,
-            output_folder,
-            zip_file,
-            current_depth,
-            passwords,
-            seven_zip_path,
-            config,
-            ui,
-        );
-        return;
+    if let Some(ref path) = extracted_path {
+        if config.flatten_wrapper_folder {
+            if let Some(new_path) = flatten_wrapper_folder(path, ui) {
+                let _ = std::fs::remove_dir(path);
+                if config.delete_empty_folders {
+                    delete_empty_folders(&new_path, ui);
+                }
+                return Some(new_path);
+            }
+        }
+        if config.delete_empty_folders {
+            delete_empty_folders(path, ui);
+        }
+    }
+
+    extracted_path
+}
+
+fn determine_extracted_path(
+    temp_folder: &str,
+    output_folder: &str,
+    zip_file: &str,
+    current_depth: u32,
+    passwords: &[String],
+    seven_zip_path: &str,
+    config: &crate::config::AppSettings,
+    ui: &Arc<crate::ui::ConsoleUi>,
+) -> Option<String> {
+    let top = list_top_entries(temp_folder);
+
+    if config.extract_nested_archives {
+        let archive_to_check: Option<String> = if top.files.len() == 1 && top.dirs.is_empty() {
+            let ext = Path::new(&top.files[0])
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_ascii_lowercase());
+            if ext
+                .as_deref()
+                .map_or(false, |e| matches!(e, "zip" | "rar" | "tar" | "7z" | "7z1"))
+            {
+                Some(top.files[0].clone())
+            } else {
+                None
+            }
+        } else if config.extract_nested_folders && !top.dirs.is_empty() {
+            let all_files = match walk_all_files(temp_folder) {
+                Some(f) if f.len() == 1 => f,
+                _ => {
+                    return Some(move_as_extracted_folder(temp_folder, output_folder, zip_file));
+                }
+            };
+            let ext = Path::new(&all_files[0])
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_ascii_lowercase());
+            if ext
+                .as_deref()
+                .map_or(false, |e| matches!(e, "zip" | "rar" | "tar" | "7z" | "7z1"))
+            {
+                Some(all_files[0].clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some(archive) = archive_to_check {
+            let archive_name = Path::new(&archive)
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            return handle_nested_archive(
+                &archive,
+                &archive_name,
+                temp_folder,
+                output_folder,
+                zip_file,
+                current_depth,
+                passwords,
+                seven_zip_path,
+                config,
+                ui,
+            );
+        }
     }
 
     let top = list_top_entries(temp_folder);
-    if top.files.len() == 1 && top.dirs.is_empty() {
-        let file_path = &top.files[0];
-        let file_name = Path::new(file_path)
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        move_single_file(file_path, temp_folder, output_folder, &file_name);
-    } else if top.files.is_empty() && top.dirs.len() == 1 {
-        move_single_directory(&top.dirs[0], temp_folder, output_folder);
+    
+    let extracted_path = if top.dirs.is_empty() {
+        let file_count = top.files.len();
+        let should_create_folder = config.create_folder_threshold > 0 
+            && file_count > config.create_folder_threshold as usize;
+        
+        if should_create_folder {
+            move_as_extracted_folder(temp_folder, output_folder, zip_file)
+        } else if file_count == 1 {
+            let file_path = &top.files[0];
+            let file_name = Path::new(file_path)
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            move_single_file(file_path, temp_folder, output_folder, &file_name);
+            output_folder.to_string()
+        } else {
+            move_files_to_output(temp_folder, output_folder);
+            output_folder.to_string()
+        }
+    } else if top.dirs.len() == 1 {
+        if config.extract_nested_folders {
+            let dest = move_folder_contents_with_return(&top.dirs[0], temp_folder, output_folder);
+            dest
+        } else {
+            move_single_directory(&top.dirs[0], temp_folder, output_folder)
+        }
     } else {
-        move_as_extracted_folder(temp_folder, output_folder, zip_file);
-    }
+        move_as_extracted_folder(temp_folder, output_folder, zip_file)
+    };
+
+    Some(extracted_path)
 }
 
 fn delete_configured_recursive(
@@ -193,27 +275,39 @@ fn handle_nested_archive(
     seven_zip_path: &str,
     config: &crate::config::AppSettings,
     ui: &Arc<crate::ui::ConsoleUi>,
-) {
-    if current_depth > MAX_NESTED_DEPTH {
-        ui.warn(&format!(
-            "嵌套深度超限 ({MAX_NESTED_DEPTH}层): {archive_name}"
-        ));
-        return;
+) -> Option<String> {
+    let max_depth = config.nested_archive_depth.min(MAX_NESTED_DEPTH_LIMIT);
+    if current_depth > max_depth + 1 {
+        ui.warn(&format!("嵌套深度超限 ({max_depth}层): {archive_name}"));
+        return None;
     }
 
     ui.info(&format!(
-        "发现嵌套包 [{current_depth}/{MAX_NESTED_DEPTH}] {archive_name}"
+        "发现嵌套包 [{current_depth}/{max_depth}] {archive_name}"
     ));
 
     for (idx, pwd) in passwords.iter().enumerate() {
-        ui.attempt_password(idx + 1, passwords.len(), pwd);
+        let debug_cmd = if config.debug_mode {
+            let pwd_flag = format!("-p:{pwd}");
+            Some(format!("l -list:v -y {pwd_flag} {archive_path}"))
+        } else {
+            None
+        };
+        ui.attempt_password(idx + 1, passwords.len(), pwd, debug_cmd.as_deref());
         let start = std::time::Instant::now();
 
-        match crate::archive::try_extract(archive_path, temp_folder, pwd, seven_zip_path, start, ui)
-        {
+        match crate::archive::try_extract(
+            archive_path,
+            temp_folder,
+            pwd,
+            seven_zip_path,
+            start,
+            ui,
+            config.debug_mode,
+        ) {
             Ok(true) => {
                 let _ = std::fs::remove_file(archive_path);
-                process_temp_folder(
+                return process_temp_folder(
                     temp_folder,
                     output_folder,
                     zip_file,
@@ -223,13 +317,13 @@ fn handle_nested_archive(
                     config,
                     ui,
                 );
-                return;
             }
             _ => continue,
         }
     }
 
     ui.warn(&format!("嵌套包解压失败: {archive_name}"));
+    None
 }
 
 struct TopEntries {
@@ -289,7 +383,7 @@ fn move_single_file(file_path: &str, temp_folder: &str, output_folder: &str, fil
     try_delete_directory(temp_folder);
 }
 
-fn move_single_directory(dir: &str, temp_folder: &str, output_folder: &str) {
+fn move_single_directory(dir: &str, temp_folder: &str, output_folder: &str) -> String {
     let mut current = dir.to_string();
 
     loop {
@@ -316,9 +410,58 @@ fn move_single_directory(dir: &str, temp_folder: &str, output_folder: &str) {
     let dest = get_unique_path(output_folder, &dir_name);
     let _ = std::fs::rename(&current, &dest);
     try_delete_directory(temp_folder);
+    dest.to_string_lossy().to_string()
 }
 
-fn move_as_extracted_folder(temp_folder: &str, output_folder: &str, zip_file: &str) {
+fn move_files_to_output(temp_folder: &str, output_folder: &str) {
+    if let Ok(entries) = std::fs::read_dir(temp_folder) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                let name = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+                let dest = get_unique_path(output_folder, &name);
+                let _ = std::fs::rename(&path, &dest);
+            }
+        }
+    }
+    try_delete_directory(temp_folder);
+}
+
+fn move_folder_contents_with_return(
+    dir: &str,
+    temp_folder: &str,
+    output_folder: &str,
+) -> String {
+    let mut moved_paths = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let dest = get_unique_path(output_folder, &name);
+            let _ = std::fs::rename(&path, &dest);
+            moved_paths.push(dest.to_string_lossy().to_string());
+        }
+    }
+    try_delete_directory(temp_folder);
+    
+    if moved_paths.len() == 1 {
+        let first = &moved_paths[0];
+        if Path::new(first).is_dir() {
+            return first.clone();
+        }
+    }
+    output_folder.to_string()
+}
+
+fn move_as_extracted_folder(temp_folder: &str, output_folder: &str, zip_file: &str) -> String {
     let stem = Path::new(zip_file)
         .file_stem()
         .unwrap_or_default()
@@ -326,6 +469,7 @@ fn move_as_extracted_folder(temp_folder: &str, output_folder: &str, zip_file: &s
         .to_string();
     let dest = get_unique_path(output_folder, &stem);
     let _ = std::fs::rename(temp_folder, &dest);
+    dest.to_string_lossy().to_string()
 }
 
 fn get_unique_path(output_folder: &str, name: &str) -> PathBuf {
@@ -341,5 +485,110 @@ fn get_unique_path(output_folder: &str, name: &str) -> PathBuf {
             return path;
         }
         suffix += 1;
+    }
+}
+
+fn flatten_wrapper_folder(dir: &str, ui: &Arc<crate::ui::ConsoleUi>) -> Option<String> {
+    let path = Path::new(dir);
+    if !path.exists() || !path.is_dir() {
+        return None;
+    }
+
+    let parent = path.parent()?;
+    let entries: Vec<_> = std::fs::read_dir(path).ok()?.flatten().collect();
+    
+    if entries.len() != 1 {
+        return None;
+    }
+    
+    let entry = &entries[0];
+    let entry_path = entry.path();
+    
+    if !entry_path.is_dir() {
+        return None;
+    }
+    
+    let folder_name = entry_path.file_name()?.to_string_lossy().to_string();
+    let dest = get_unique_path(&parent.to_string_lossy(), &folder_name);
+    
+    if let Err(e) = std::fs::rename(&entry_path, &dest) {
+        ui.warn(&format!("提升文件夹失败: {}", e));
+        return None;
+    }
+    
+    ui.info(&format!("提升文件夹: {}", folder_name));
+    Some(dest.to_string_lossy().to_string())
+}
+
+fn delete_empty_folders(dir: &str, ui: &Arc<crate::ui::ConsoleUi>) {
+    let path = Path::new(dir);
+    if !path.exists() || !path.is_dir() {
+        return;
+    }
+
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            if entry_path.is_dir() {
+                delete_empty_folders(&entry_path.to_string_lossy(), ui);
+                if is_dir_empty(&entry_path) {
+                    let name = entry_path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string();
+                    ui.info(&format!("删除空文件夹: {}", name));
+                    let _ = std::fs::remove_dir(&entry_path);
+                }
+            }
+        }
+    }
+}
+
+fn is_dir_empty(path: &Path) -> bool {
+    match std::fs::read_dir(path) {
+        Ok(mut entries) => entries.next().is_none(),
+        Err(_) => false,
+    }
+}
+
+pub fn print_directory_tree(dir: &str, ui: &Arc<crate::ui::ConsoleUi>) {
+    let path = Path::new(dir);
+    if !path.exists() {
+        return;
+    }
+
+    ui.info("目录结构:");
+    print_tree(path, "", true, ui);
+}
+
+fn print_tree(path: &Path, prefix: &str, is_last: bool, ui: &Arc<crate::ui::ConsoleUi>) {
+    let name = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+
+    let connector = if is_last { "└── " } else { "├── " };
+    eprintln!("{}{}{}", prefix, connector, name);
+
+    if path.is_dir() {
+        let new_prefix = format!("{}{}", prefix, if is_last { "    " } else { "│   " });
+
+        if let Ok(entries) = std::fs::read_dir(path) {
+            let mut entries: Vec<_> = entries.flatten().collect();
+            entries.sort_by(|a, b| {
+                let a_is_dir = a.path().is_dir();
+                let b_is_dir = b.path().is_dir();
+                b_is_dir
+                    .cmp(&a_is_dir)
+                    .then_with(|| a.file_name().cmp(&b.file_name()))
+            });
+
+            let len = entries.len();
+            for (i, entry) in entries.iter().enumerate() {
+                print_tree(&entry.path(), &new_prefix, i == len - 1, ui);
+            }
+        }
     }
 }

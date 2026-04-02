@@ -66,6 +66,22 @@ fn main() {
         return;
     }
 
+    if settings.debug_mode {
+        let width = 79;
+        let sep = "=".repeat(width);
+        eprintln!("{}", sep);
+        eprintln!("  SmartUnZip  调试信息");
+        eprintln!("{}", sep);
+        eprintln!("  [*] Bandizip路径: {}", settings.seven_zip_path);
+        eprintln!("  [*] 解压嵌套压缩包: {}", settings.extract_nested_archives);
+        eprintln!("  [*] 嵌套压缩包深度: {}", settings.nested_archive_depth);
+        eprintln!("  [*] 展平嵌套文件夹: {}", settings.extract_nested_folders);
+        eprintln!("  [*] 自动退出: {}", settings.auto_exit);
+        eprintln!("  [*] 删除空文件夹: {}", settings.delete_empty_folders);
+        eprintln!("  [*] 密码数量: {}", settings.passwords.len());
+        eprintln!();
+    }
+
     for zip_file in &args {
         let output_folder = std::path::Path::new(zip_file)
             .parent()
@@ -94,7 +110,18 @@ fn main() {
             files::try_delete_directory(&temp_folder);
             let _ = std::fs::create_dir_all(&temp_folder);
 
-            ui.attempt_password(pwd_idx + 1, settings.passwords.len(), pwd);
+            let debug_cmd = if settings.debug_mode {
+                let pwd_flag = format!("-p:{pwd}");
+                Some(format!("l -list:v -y {pwd_flag} {zip_file}"))
+            } else {
+                None
+            };
+            ui.attempt_password(
+                pwd_idx + 1,
+                settings.passwords.len(),
+                pwd,
+                debug_cmd.as_deref(),
+            );
 
             match archive::try_extract(
                 zip_file,
@@ -103,9 +130,10 @@ fn main() {
                 &settings.seven_zip_path,
                 start_time,
                 &ui,
+                settings.debug_mode,
             ) {
                 Ok(true) => {
-                    files::process_temp_folder(
+                    let extracted_path = files::process_temp_folder(
                         &temp_folder,
                         &output_folder,
                         zip_file,
@@ -117,6 +145,11 @@ fn main() {
                     );
                     extracted = true;
                     ui.success("解压完成");
+                    if settings.debug_mode {
+                        if let Some(path) = extracted_path {
+                            files::print_directory_tree(&path, &ui);
+                        }
+                    }
                     std::thread::sleep(std::time::Duration::from_millis(300));
                     break; // 修复原 C# 中的 bug：原为 return，跳过后续文件
                 }
@@ -130,6 +163,10 @@ fn main() {
             ui.error("所有密码均失败，解压终止");
             wait_key();
         }
+    }
+
+    if !settings.auto_exit {
+        wait_key();
     }
 }
 
