@@ -137,7 +137,7 @@ fn determine_extracted_path(
 ) -> Option<String> {
     let top = list_top_entries(temp_folder);
 
-    if config.extract_nested_archives {
+    if config.nested_archive_depth > 0 {
         let archive_to_check: Option<String> = if top.files.len() == 1 && top.dirs.is_empty() {
             let ext = Path::new(&top.files[0])
                 .extension()

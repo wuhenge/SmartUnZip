@@ -75,10 +75,7 @@ fn main() {
     if settings.debug_mode {
         ui.debug_header("调试信息");
         ui.debug_item("Bandizip", &settings.seven_zip_path);
-        ui.debug_item_bool("解压嵌套压缩包", settings.extract_nested_archives);
-        if settings.extract_nested_archives {
-            ui.debug_item("嵌套压缩包深度", &settings.nested_archive_depth.to_string());
-        }
+        ui.debug_item("嵌套压缩包深度", &settings.nested_archive_depth.to_string());
         ui.debug_item_bool("展平嵌套文件夹", settings.extract_nested_folders);
         ui.debug_item_bool("自动退出", settings.auto_exit);
         ui.debug_item_bool("删除空文件夹", settings.delete_empty_folders);

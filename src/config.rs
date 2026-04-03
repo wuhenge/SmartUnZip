@@ -11,8 +11,6 @@ pub struct AppSettings {
     pub delete_files: Vec<String>,
     #[serde(rename = "DeleteFolders", default)]
     pub delete_folders: Vec<String>,
-    #[serde(rename = "ExtractNestedArchives", default = "default_extract_nested")]
-    pub extract_nested_archives: bool,
     #[serde(rename = "NestedArchiveDepth", default = "default_nested_depth")]
     pub nested_archive_depth: u32,
     #[serde(rename = "AutoExit", default = "default_auto_exit")]
@@ -39,12 +37,8 @@ pub struct AppSettings {
     pub open_folder_after_extract: bool,
 }
 
-fn default_extract_nested() -> bool {
-    false
-}
-
 fn default_nested_depth() -> u32 {
-    1
+    0
 }
 
 fn default_auto_exit() -> bool {
@@ -89,8 +83,7 @@ struct ConfigFile {
 const DEFAULT_CONFIG: &str = r#"{
   "AppSettings": {
     "SevenZipPath": "C:\\Program Files\\Bandizip\\bz.exe",
-    "ExtractNestedArchives": false,
-    "NestedArchiveDepth": 1,
+    "NestedArchiveDepth": 0,
     "AutoExit": false,
     "ExtractNestedFolders": false,
     "DebugMode": false,
@@ -119,8 +112,7 @@ const DEFAULT_CONFIG: &str = r#"{
 const DEFAULT_CONFIG: &str = r#"{
   "AppSettings": {
     "SevenZipPath": "",
-    "ExtractNestedArchives": false,
-    "NestedArchiveDepth": 1,
+    "NestedArchiveDepth": 0,
     "AutoExit": false,
     "ExtractNestedFolders": false,
     "DebugMode": false,

@@ -42,8 +42,7 @@ cargo build --release
 {
   "AppSettings": {
     "SevenZipPath": "C:\\Program Files\\Bandizip\\bz.exe",
-    "ExtractNestedArchives": false,
-    "NestedArchiveDepth": 1,
+    "NestedArchiveDepth": 0,
     "AutoExit": false,
     "ExtractNestedFolders": false,
     "DebugMode": false,
@@ -73,8 +72,7 @@ cargo build --release
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | SevenZipPath | string | - | Bandizip (bz.exe) 的路径 |
-| ExtractNestedArchives | bool | false | 是否解压嵌套压缩包（如 zip 内包含 zip） |
-| NestedArchiveDepth | number | 1 | 嵌套压缩包的最大解压层数（上限 10） |
+| NestedArchiveDepth | number | 0 | 嵌套压缩包的最大解压层数（0 表示不启用，1-10 为解压层数） |
 | AutoExit | bool | false | 解压完成后是否自动退出 |
 | ExtractNestedFolders | bool | false | 是否展平嵌套文件夹（单文件夹时将其内容提升到上级） |
 | DebugMode | bool | false | 调试模式，打印命令行参数和压缩包目录结构 |
