@@ -3,6 +3,8 @@ use std::io::Write;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
+const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
 pub struct ConsoleUi {
     app_name: String,
     last_inline_len: Mutex<usize>,
@@ -20,7 +22,7 @@ impl ConsoleUi {
 
     pub fn header(&self, title: &str) {
         let width = std::cmp::min(std::cmp::max(terminal_width().saturating_sub(1), 20), 80);
-        let line = "=".repeat(width);
+        let line = "━".repeat(width);
         eprintln!("{}", line.dimmed());
         eprintln!("  {}  {}", self.app_name.cyan().bold(), title.cyan());
         eprintln!("{}", line.dimmed());
@@ -28,22 +30,22 @@ impl ConsoleUi {
 
     pub fn info(&self, msg: &str) {
         self.clear_inline();
-        eprintln!("  {} {}", "[*]".dimmed(), msg.dimmed());
+        eprintln!("  {} {}", "●".dimmed(), msg.dimmed());
     }
 
     pub fn success(&self, msg: &str) {
         self.clear_inline();
-        eprintln!("  {} {}", "[+]".green().bold(), msg.green());
+        eprintln!("  {} {}", "✓".green().bold(), msg.green());
     }
 
     pub fn warn(&self, msg: &str) {
         self.clear_inline();
-        eprintln!("  {} {}", "[!]".yellow().bold(), msg.yellow());
+        eprintln!("  {} {}", "⚠".yellow().bold(), msg.yellow());
     }
 
     pub fn error(&self, msg: &str) {
         self.clear_inline();
-        eprintln!("  {} {}", "[-]".red().bold(), msg.red());
+        eprintln!("  {} {}", "✗".red().bold(), msg.red());
     }
 
     pub fn attempt_password(
@@ -53,17 +55,25 @@ impl ConsoleUi {
         password: &str,
         debug_cmd: Option<&str>,
     ) {
-        let frames = ["..", ".+", "+.", "+-"];
         let spinner_idx = self.attempt_spinner.fetch_add(1, Ordering::Relaxed);
-        let spinner_str = frames[spinner_idx % frames.len()];
+        let spinner = SPINNER_FRAMES[spinner_idx % SPINNER_FRAMES.len()];
         let masked = mask_password(password);
+        
+        let progress = format!("[{}/{}]", index, total);
         if let Some(cmd) = debug_cmd {
             self.inline(&format!(
-                "\r  {spinner_str} [{index}/{total}] 密码: {masked} | {cmd}"
+                "\r  {} {} 尝试密码: {} │ {}",
+                spinner.cyan(),
+                progress.dimmed(),
+                masked.yellow(),
+                cmd.dimmed()
             ));
         } else {
             self.inline(&format!(
-                "\r  {spinner_str} [{index}/{total}] 密码: {masked}"
+                "\r  {} {} 尝试密码: {}",
+                spinner.cyan(),
+                progress.dimmed(),
+                masked.yellow()
             ));
         }
     }
@@ -79,55 +89,66 @@ impl ConsoleUi {
         remaining_seconds: f64,
     ) {
         let percent = percent.clamp(0, 100);
-        const BAR_WIDTH: usize = 20;
-        let filled = ((BAR_WIDTH as f64) * (percent as f64 / 100.0)).round() as usize;
-        let filled = filled.clamp(0, BAR_WIDTH);
-
-        let frames = ["..", ".+", "+.", "+-"];
-        let spinner = frames[spinner_index % frames.len()];
-
-        let bar_filled = "#".repeat(filled);
-        let bar_empty = ".".repeat(BAR_WIDTH - filled);
-
+        const BAR_WIDTH: usize = 24;
+        
+        let spinner = SPINNER_FRAMES[spinner_index % SPINNER_FRAMES.len()];
+        let bar = build_progress_bar(percent as usize, BAR_WIDTH);
+        
         let file_part = if files >= 0 {
-            format!(" {files} 个文件")
+            format!(" {} 文件", files)
         } else {
             String::new()
         };
 
         let speed_str = if speed_mbps > 0.0 {
-            format!("{speed_mbps:.1} MB/s")
+            format!("{:.1} MB/s", speed_mbps)
         } else {
             String::new()
         };
+        
         let time_str = format_time(remaining_seconds);
         let speed_and_time = match (!speed_str.is_empty(), !time_str.is_empty()) {
-            (true, true) => format!(" {speed_str} | {time_str}"),
-            (true, false) => format!(" {speed_str}"),
-            (false, true) => format!(" {time_str}"),
+            (true, true) => format!(" {} │ {}", speed_str.cyan(), time_str.white()),
+            (true, false) => format!(" {}", speed_str.cyan()),
+            (false, true) => format!(" {}", time_str.white()),
             _ => String::new(),
         };
 
+        let percent_str = format!("{:>3}%", percent);
+        let percent_colored = if percent < 30 {
+            percent_str.yellow()
+        } else if percent < 70 {
+            percent_str.cyan()
+        } else {
+            percent_str.green()
+        };
+
         let msg = format!(
-            "\r  {spinner} {percent:>3}% [{bar_filled}{bar_empty}] {}{file_part}{speed_and_time}",
-            format_bytes(extracted_bytes),
+            "\r  {} {} {} {}{}{}",
+            spinner.cyan(),
+            percent_colored.bold(),
+            bar,
+            format_bytes(extracted_bytes).white(),
+            file_part.dimmed(),
+            speed_and_time
         );
         self.inline(&msg);
     }
 
     pub fn progress_unknown(&self, spinner_index: usize) {
-        let frames = ["..", ".+", "+.", "+-"];
-        let spinner = frames[spinner_index % frames.len()];
-        self.inline(&format!("\r  {spinner} 解压中..."));
+        let spinner = SPINNER_FRAMES[spinner_index % SPINNER_FRAMES.len()];
+        let dots = ".".repeat((spinner_index % 3) + 1);
+        self.inline(&format!("\r  {} 解压中{}", spinner.cyan(), dots.white()));
     }
 
     fn inline(&self, message: &str) {
         let mut last = self.last_inline_len.lock().unwrap();
-        let pad = last.saturating_sub(message.len());
+        let display_width = visible_width(message);
+        let pad = last.saturating_sub(display_width);
         let padded = format!("{}{}", message, " ".repeat(pad));
         eprint!("{padded}");
         std::io::stderr().flush().ok();
-        *last = message.len();
+        *last = display_width;
     }
 
     fn clear_inline(&self) {
@@ -137,6 +158,58 @@ impl ConsoleUi {
             *last = 0;
         }
     }
+}
+
+fn visible_width(s: &str) -> usize {
+    let mut width = 0;
+    let mut in_escape = false;
+    let chars: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    
+    while i < chars.len() {
+        if in_escape {
+            if chars[i] == 'm' {
+                in_escape = false;
+            }
+            i += 1;
+            continue;
+        }
+        
+        if chars[i] == '\x1b' && i + 1 < chars.len() && chars[i + 1] == '[' {
+            in_escape = true;
+            i += 2;
+            continue;
+        }
+        
+        width += unicode_width(chars[i]);
+        i += 1;
+    }
+    
+    width
+}
+
+fn unicode_width(c: char) -> usize {
+    match c {
+        '\x00'..='\x7F' => 1,
+        _ => 2,
+    }
+}
+
+fn build_progress_bar(percent: usize, width: usize) -> String {
+    let filled = (width as f64 * percent as f64 / 100.0).round() as usize;
+    let filled = filled.min(width);
+    
+    let mut bar = String::new();
+    
+    for i in 0..width {
+        if i < filled {
+            bar.push_str(&"█".cyan().to_string());
+        } else {
+            bar.push_str(&"░".dimmed().to_string());
+        }
+    }
+    
+    format!("│{}│", bar)
 }
 
 fn mask_password(password: &str) -> String {
@@ -178,15 +251,15 @@ fn format_time(seconds: f64) -> String {
         return String::new();
     }
     if seconds < 60.0 {
-        format!("剩余 {seconds:.0}s")
+        format!("剩余 {:.0}s", seconds)
     } else if seconds < 3600.0 {
         let mins = (seconds / 60.0) as u32;
         let secs = (seconds % 60.0) as u32;
-        format!("剩余 {mins}m{secs:02}s")
+        format!("剩余 {}m{:02}s", mins, secs)
     } else {
         let hours = (seconds / 3600.0) as u32;
         let mins = ((seconds % 3600.0) / 60.0) as u32;
-        format!("剩余 {hours}h{mins:02}m")
+        format!("剩余 {}h{:02}m", hours, mins)
     }
 }
 

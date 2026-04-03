@@ -77,6 +77,14 @@ struct ConfigFile {
 const DEFAULT_CONFIG: &str = r#"{
   "AppSettings": {
     "SevenZipPath": "C:\\Program Files\\Bandizip\\bz.exe",
+    "ExtractNestedArchives": false,
+    "NestedArchiveDepth": 1,
+    "AutoExit": false,
+    "ExtractNestedFolders": false,
+    "DebugMode": false,
+    "DeleteEmptyFolders": false,
+    "CreateFolderThreshold": 1,
+    "FlattenWrapperFolder": false,
     "Passwords": [
       "1234",
       "www",
@@ -88,15 +96,7 @@ const DEFAULT_CONFIG: &str = r#"{
     ],
     "DeleteFolders": [
       "说明"
-    ],
-    "ExtractNestedArchives": false,
-    "NestedArchiveDepth": 1,
-    "AutoExit": false,
-    "ExtractNestedFolders": false,
-    "DebugMode": false,
-    "DeleteEmptyFolders": false,
-    "CreateFolderThreshold": 1,
-    "FlattenWrapperFolder": false
+    ]
   }
 }
 "#;
@@ -105,6 +105,14 @@ const DEFAULT_CONFIG: &str = r#"{
 const DEFAULT_CONFIG: &str = r#"{
   "AppSettings": {
     "SevenZipPath": "",
+    "ExtractNestedArchives": false,
+    "NestedArchiveDepth": 1,
+    "AutoExit": false,
+    "ExtractNestedFolders": false,
+    "DebugMode": false,
+    "DeleteEmptyFolders": false,
+    "CreateFolderThreshold": 1,
+    "FlattenWrapperFolder": false,
     "Passwords": [
       "1234",
       "www",
@@ -116,15 +124,7 @@ const DEFAULT_CONFIG: &str = r#"{
     ],
     "DeleteFolders": [
       "说明"
-    ],
-    "ExtractNestedArchives": false,
-    "NestedArchiveDepth": 1,
-    "AutoExit": false,
-    "ExtractNestedFolders": false,
-    "DebugMode": false,
-    "DeleteEmptyFolders": false,
-    "CreateFolderThreshold": 1,
-    "FlattenWrapperFolder": false
+    ]
   }
 }
 "#;

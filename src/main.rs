@@ -7,6 +7,10 @@ mod ui;
 use std::io::Write;
 use std::sync::Arc;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+const GITHUB_RELEASES_URL: &str = "https://github.com/wuhenge/SmartUnZip/releases";
+const GITHUB_API_URL: &str = "https://api.github.com/repos/wuhenge/SmartUnZip/releases/latest";
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let ui = Arc::new(ui::ConsoleUi::new("SmartUnZip"));
@@ -35,6 +39,7 @@ fn main() {
         eprintln!();
         eprintln!("  1. {toggle_label}");
         eprintln!("  2. 验证 Bandizip");
+        eprintln!("  3. 检查更新");
         eprintln!("  0. 退出");
         eprintln!();
         eprint!("  请选择: ");
@@ -53,6 +58,7 @@ fn main() {
                 }
             }
             "2" => verify_bandizip(&settings.seven_zip_path, &ui),
+            "3" => check_for_updates(&ui),
             _ => {}
         }
 
@@ -179,7 +185,6 @@ fn wait_key() {
 fn verify_bandizip(path: &str, ui: &Arc<ui::ConsoleUi>) {
     eprintln!();
 
-    // 检查文件名
     let file_name = std::path::Path::new(path)
         .file_name()
         .unwrap_or_default()
@@ -197,13 +202,11 @@ fn verify_bandizip(path: &str, ui: &Arc<ui::ConsoleUi>) {
         return;
     }
 
-    // 检查文件是否存在
     if !std::path::Path::new(path).exists() {
         ui.error("文件不存在");
         return;
     }
 
-    // 运行验证（仅检查能否启动）
     match std::process::Command::new(path)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
@@ -218,4 +221,77 @@ fn verify_bandizip(path: &str, ui: &Arc<ui::ConsoleUi>) {
             ui.error(&format!("验证失败: {e}"));
         }
     }
+}
+
+fn check_for_updates(ui: &Arc<ui::ConsoleUi>) {
+    eprintln!();
+    ui.info(&format!("当前版本: v{VERSION}"));
+    ui.info("正在检查更新...");
+
+    match fetch_latest_version() {
+        Ok(latest_version) => {
+            eprintln!();
+            if compare_versions(VERSION, &latest_version) {
+                ui.success(&format!("发现新版本: v{latest_version}"));
+                eprintln!();
+                ui.info("请访问以下链接下载最新版本：");
+                eprintln!("  {GITHUB_RELEASES_URL}");
+            } else {
+                ui.success("当前版本已是最新！");
+                eprintln!();
+                ui.info("项目地址：");
+                eprintln!("  {GITHUB_RELEASES_URL}");
+            }
+        }
+        Err(e) => {
+            eprintln!();
+            ui.error(&format!("检查更新失败: {e}"));
+            eprintln!();
+            ui.info("请手动访问以下链接检查更新：");
+            eprintln!("  {GITHUB_RELEASES_URL}");
+        }
+    }
+}
+
+fn fetch_latest_version() -> Result<String, String> {
+    let response = ureq::get(GITHUB_API_URL)
+        .set("User-Agent", &format!("SmartUnZip/{VERSION}"))
+        .set("Accept", "application/vnd.github.v3+json")
+        .call()
+        .map_err(|e| format!("网络请求失败: {e}"))?;
+
+    let json: serde_json::Value = response
+        .into_json()
+        .map_err(|e| format!("解析响应失败: {e}"))?;
+
+    let tag_name = json["tag_name"]
+        .as_str()
+        .ok_or("无法获取版本信息")?;
+
+    let version = tag_name.trim_start_matches('v').to_string();
+    Ok(version)
+}
+
+fn compare_versions(current: &str, latest: &str) -> bool {
+    let parse_version = |v: &str| -> Vec<u32> {
+        v.split('.')
+            .filter_map(|s| s.parse().ok())
+            .collect()
+    };
+
+    let current_parts = parse_version(current);
+    let latest_parts = parse_version(latest);
+
+    for i in 0..std::cmp::max(current_parts.len(), latest_parts.len()) {
+        let current_val = current_parts.get(i).unwrap_or(&0);
+        let latest_val = latest_parts.get(i).unwrap_or(&0);
+
+        if latest_val > current_val {
+            return true;
+        } else if latest_val < current_val {
+            return false;
+        }
+    }
+
+    false
 }

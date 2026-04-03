@@ -10,6 +10,7 @@ colored = "2"
 winreg = "0.52"
 regex = "1"
 anyhow = "1"
+ureq = { version = "2", features = ["json"] }
 
 [profile.release]
 opt-level = "z"

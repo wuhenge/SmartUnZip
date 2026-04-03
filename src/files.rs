@@ -286,6 +286,9 @@ fn handle_nested_archive(
         "发现嵌套包 [{current_depth}/{max_depth}] {archive_name}"
     ));
 
+    let nested_temp_folder = format!("{temp_folder}_nested");
+    let _ = std::fs::create_dir_all(&nested_temp_folder);
+
     for (idx, pwd) in passwords.iter().enumerate() {
         let debug_cmd = if config.debug_mode {
             let pwd_flag = format!("-p:{pwd}");
@@ -298,7 +301,7 @@ fn handle_nested_archive(
 
         match crate::archive::try_extract(
             archive_path,
-            temp_folder,
+            &nested_temp_folder,
             pwd,
             seven_zip_path,
             start,
@@ -307,6 +310,10 @@ fn handle_nested_archive(
         ) {
             Ok(true) => {
                 let _ = std::fs::remove_file(archive_path);
+                
+                move_nested_contents(&nested_temp_folder, temp_folder);
+                try_delete_directory(&nested_temp_folder);
+                
                 return process_temp_folder(
                     temp_folder,
                     output_folder,
@@ -321,9 +328,29 @@ fn handle_nested_archive(
             _ => continue,
         }
     }
-
+    
+    try_delete_directory(&nested_temp_folder);
     ui.warn(&format!("嵌套包解压失败: {archive_name}"));
     None
+}
+
+fn move_nested_contents(src: &str, dst: &str) {
+    if !Path::new(src).exists() {
+        return;
+    }
+    if let Ok(entries) = std::fs::read_dir(src) {
+        for entry in entries.flatten() {
+            let src_path = entry.path();
+            let name = src_path.file_name().unwrap_or_default();
+            let dst_path = Path::new(dst).join(name);
+            
+            if src_path.is_dir() {
+                let _ = std::fs::rename(&src_path, &dst_path);
+            } else {
+                let _ = std::fs::rename(&src_path, &dst_path);
+            }
+        }
+    }
 }
 
 struct TopEntries {
