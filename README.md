@@ -50,6 +50,8 @@ cargo build --release
     "DeleteEmptyFolders": false,
     "CreateFolderThreshold": 1,
     "FlattenWrapperFolder": false,
+    "DeleteSourceAfterExtract": false,
+    "OpenFolderAfterExtract": false,
     "Passwords": [
       "1234",
       "www",
@@ -79,6 +81,8 @@ cargo build --release
 | DeleteEmptyFolders | bool | false | 解压完成后是否删除空文件夹 |
 | CreateFolderThreshold | number | 1 | 当压缩包内无文件夹时，文件数量超过此值则创建以压缩包命名的文件夹（0 表示不启用） |
 | FlattenWrapperFolder | bool | false | 当解压结果为"单层空文件夹套单文件夹"时，提升内层文件夹到上级并删除空的外层文件夹 |
+| DeleteSourceAfterExtract | bool | false | 解压完成后是否删除源压缩文件 |
+| OpenFolderAfterExtract | bool | false | 解压完成后是否自动打开解压后的文件夹 |
 | Passwords | array | [] | 尝试解压的密码列表 |
 | DeleteFiles | array | [] | 解压后自动删除的文件名（支持模糊匹配） |
 | DeleteFolders | array | [] | 解压后自动删除的文件夹名（支持模糊匹配） |

@@ -149,6 +149,23 @@ fn main() {
                     );
                     extracted = true;
                     ui.success("解压完成");
+                    
+                    if settings.delete_source_after_extract {
+                        if let Err(e) = std::fs::remove_file(zip_file) {
+                            ui.warn(&format!("删除源文件失败: {}", e));
+                        } else {
+                            ui.info(&format!("已删除源文件: {}", file_name));
+                        }
+                    }
+                    
+                    if settings.open_folder_after_extract {
+                        if let Some(ref path) = extracted_path {
+                            if let Err(e) = open_folder(path) {
+                                ui.warn(&format!("打开文件夹失败: {}", e));
+                            }
+                        }
+                    }
+                    
                     if settings.debug_mode {
                         if let Some(path) = extracted_path {
                             files::print_directory_tree(&path, &ui);
@@ -291,4 +308,18 @@ fn compare_versions(current: &str, latest: &str) -> bool {
     }
 
     false
+}
+
+#[cfg(windows)]
+fn open_folder(path: &str) -> anyhow::Result<()> {
+    std::process::Command::new("explorer")
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| anyhow::anyhow!("无法打开文件夹: {}", e))
+}
+
+#[cfg(not(windows))]
+fn open_folder(path: &str) -> anyhow::Result<()> {
+    Err(anyhow::anyhow!("此功能仅在 Windows 上可用"))
 }

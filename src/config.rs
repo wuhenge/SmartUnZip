@@ -33,6 +33,10 @@ pub struct AppSettings {
     pub create_folder_threshold: u32,
     #[serde(rename = "FlattenWrapperFolder", default = "default_flatten_wrapper_folder")]
     pub flatten_wrapper_folder: bool,
+    #[serde(rename = "DeleteSourceAfterExtract", default = "default_delete_source_after_extract")]
+    pub delete_source_after_extract: bool,
+    #[serde(rename = "OpenFolderAfterExtract", default = "default_open_folder_after_extract")]
+    pub open_folder_after_extract: bool,
 }
 
 fn default_extract_nested() -> bool {
@@ -67,6 +71,14 @@ fn default_flatten_wrapper_folder() -> bool {
     false
 }
 
+fn default_delete_source_after_extract() -> bool {
+    false
+}
+
+fn default_open_folder_after_extract() -> bool {
+    false
+}
+
 #[derive(Deserialize)]
 struct ConfigFile {
     #[serde(rename = "AppSettings")]
@@ -85,6 +97,8 @@ const DEFAULT_CONFIG: &str = r#"{
     "DeleteEmptyFolders": false,
     "CreateFolderThreshold": 1,
     "FlattenWrapperFolder": false,
+    "DeleteSourceAfterExtract": false,
+    "OpenFolderAfterExtract": false,
     "Passwords": [
       "1234",
       "www",
@@ -113,6 +127,8 @@ const DEFAULT_CONFIG: &str = r#"{
     "DeleteEmptyFolders": false,
     "CreateFolderThreshold": 1,
     "FlattenWrapperFolder": false,
+    "DeleteSourceAfterExtract": false,
+    "OpenFolderAfterExtract": false,
     "Passwords": [
       "1234",
       "www",
