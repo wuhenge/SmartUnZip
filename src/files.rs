@@ -585,11 +585,43 @@ pub fn print_directory_tree(dir: &str, ui: &Arc<crate::ui::ConsoleUi>) {
         return;
     }
 
-    ui.info("目录结构:");
-    print_tree(path, "", true, ui);
+    ui.debug_section("解压结果");
+    let mut state = TreeState::default();
+    print_tree(path, "", true, ui, &mut state);
 }
 
-fn print_tree(path: &Path, prefix: &str, is_last: bool, ui: &Arc<crate::ui::ConsoleUi>) {
+#[derive(Default)]
+struct TreeState {
+    count: usize,
+    max_reached: bool,
+}
+
+impl TreeState {
+    const MAX_ITEMS: usize = 20;
+
+    fn can_show(&mut self) -> bool {
+        if self.count >= Self::MAX_ITEMS {
+            self.max_reached = true;
+            return false;
+        }
+        self.count += 1;
+        true
+    }
+}
+
+fn print_tree(
+    path: &Path,
+    prefix: &str,
+    is_last: bool,
+    ui: &Arc<crate::ui::ConsoleUi>,
+    state: &mut TreeState,
+) {
+    use colored::Colorize;
+
+    if !state.can_show() {
+        return;
+    }
+
     let name = path
         .file_name()
         .unwrap_or_default()
@@ -597,7 +629,12 @@ fn print_tree(path: &Path, prefix: &str, is_last: bool, ui: &Arc<crate::ui::Cons
         .to_string();
 
     let connector = if is_last { "└── " } else { "├── " };
-    eprintln!("{}{}{}", prefix, connector, name);
+    let display_name = if path.is_dir() {
+        format!("{}{}", "📁 ".cyan(), name.cyan().bold())
+    } else {
+        format!("{}{}", "📄 ".dimmed(), name.white())
+    };
+    eprintln!("{}{}{}", prefix.dimmed(), connector.dimmed(), display_name);
 
     if path.is_dir() {
         let new_prefix = format!("{}{}", prefix, if is_last { "    " } else { "│   " });
@@ -614,7 +651,21 @@ fn print_tree(path: &Path, prefix: &str, is_last: bool, ui: &Arc<crate::ui::Cons
 
             let len = entries.len();
             for (i, entry) in entries.iter().enumerate() {
-                print_tree(&entry.path(), &new_prefix, i == len - 1, ui);
+                if state.max_reached {
+                    break;
+                }
+                print_tree(&entry.path(), &new_prefix, i == len - 1 && !state.max_reached, ui, state);
+            }
+
+            if state.max_reached && state.count == TreeState::MAX_ITEMS {
+                let omitted_connector = if is_last { "    " } else { "│   " };
+                eprintln!(
+                    "{}{}{}",
+                    prefix.dimmed(),
+                    omitted_connector.dimmed(),
+                    "... 省略更多内容".dimmed().italic()
+                );
+                state.count += 1;
             }
         }
     }

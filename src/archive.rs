@@ -1,3 +1,4 @@
+use colored::Colorize;
 use regex::Regex;
 use std::io::Read;
 use std::process::{Command, Stdio};
@@ -81,9 +82,10 @@ pub fn try_extract(
     if debug {
         let simple_list_args = vec!["l", "-list:s", "-y", &pwd_flag, zip_file];
         if let Ok(simple_result) = run_capture(seven_zip_path, &simple_list_args) {
+            ui.clear_inline();
             eprintln!();
-            eprintln!("  [*] [调试] 压缩包目录结构:");
-            print_simple_file_list(&simple_result.stdout);
+            ui.debug_section("压缩包内容");
+            print_simple_file_list(&simple_result.stdout, ui);
         }
     }
 
@@ -383,23 +385,39 @@ fn measure_folder(folder: &str) -> std::io::Result<(u64, u32)> {
     Ok((total_bytes, file_count))
 }
 
-fn print_simple_file_list(listing: &str) {
-    eprintln!();
-    for line in listing.lines() {
-        let line = line.trim();
-        // 跳过空行和头部信息
-        if line.is_empty()
-            || line.starts_with("----")
-            || line.starts_with("bz ")
-            || line.contains("Bandizip")
-            || line.contains("Copyright")
-            || line.starts_with("Listing archive:")
-            || line.starts_with("Archive format:")
-            || line.contains("files,")
-        {
-            continue;
-        }
-        // 直接输出文件名
-        eprintln!("  {line}");
+fn print_simple_file_list(listing: &str, ui: &Arc<crate::ui::ConsoleUi>) {
+    let lines: Vec<&str> = listing
+        .lines()
+        .map(|l| l.trim())
+        .filter(|line| {
+            !line.is_empty()
+                && !line.starts_with("----")
+                && !line.starts_with("bz ")
+                && !line.contains("Bandizip")
+                && !line.contains("Copyright")
+                && !line.starts_with("Listing archive:")
+                && !line.starts_with("Archive format:")
+                && !line.contains("files,")
+        })
+        .collect();
+
+    if lines.is_empty() {
+        return;
     }
+
+    eprintln!();
+    let max_display = 15;
+    for (i, line) in lines.iter().enumerate() {
+        if i >= max_display {
+            let remaining = lines.len() - max_display;
+            ui.info(&format!("... 还有 {} 个文件/文件夹", remaining));
+            break;
+        }
+        if line.ends_with('/') || line.ends_with('\\') {
+            eprintln!("  {} {}", "📁".dimmed(), line.cyan());
+        } else {
+            eprintln!("  {} {}", "📄".dimmed(), line.white());
+        }
+    }
+    eprintln!();
 }

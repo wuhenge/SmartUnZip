@@ -73,18 +73,16 @@ fn main() {
     }
 
     if settings.debug_mode {
-        let width = 79;
-        let sep = "=".repeat(width);
-        eprintln!("{}", sep);
-        eprintln!("  SmartUnZip  调试信息");
-        eprintln!("{}", sep);
-        eprintln!("  [*] Bandizip路径: {}", settings.seven_zip_path);
-        eprintln!("  [*] 解压嵌套压缩包: {}", settings.extract_nested_archives);
-        eprintln!("  [*] 嵌套压缩包深度: {}", settings.nested_archive_depth);
-        eprintln!("  [*] 展平嵌套文件夹: {}", settings.extract_nested_folders);
-        eprintln!("  [*] 自动退出: {}", settings.auto_exit);
-        eprintln!("  [*] 删除空文件夹: {}", settings.delete_empty_folders);
-        eprintln!("  [*] 密码数量: {}", settings.passwords.len());
+        ui.debug_header("调试信息");
+        ui.debug_item("Bandizip", &settings.seven_zip_path);
+        ui.debug_item_bool("解压嵌套压缩包", settings.extract_nested_archives);
+        if settings.extract_nested_archives {
+            ui.debug_item("嵌套压缩包深度", &settings.nested_archive_depth.to_string());
+        }
+        ui.debug_item_bool("展平嵌套文件夹", settings.extract_nested_folders);
+        ui.debug_item_bool("自动退出", settings.auto_exit);
+        ui.debug_item_bool("删除空文件夹", settings.delete_empty_folders);
+        ui.debug_item("密码数量", &settings.passwords.len().to_string());
         eprintln!();
     }
 
@@ -167,7 +165,6 @@ fn main() {
 
         if !extracted {
             ui.error("所有密码均失败，解压终止");
-            wait_key();
         }
     }
 

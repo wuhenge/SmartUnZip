@@ -48,6 +48,29 @@ impl ConsoleUi {
         eprintln!("  {} {}", "✗".red().bold(), msg.red());
     }
 
+    pub fn debug_header(&self, title: &str) {
+        let width = std::cmp::min(std::cmp::max(terminal_width().saturating_sub(1), 20), 80);
+        let line = "━".repeat(width);
+        eprintln!("{}", line.dimmed());
+        eprintln!("  {}  {}", self.app_name.cyan().bold(), title.cyan());
+        eprintln!("{}", line.dimmed());
+    }
+
+    pub fn debug_item(&self, label: &str, value: &str) {
+        eprintln!("  {} {}: {}", "◈".dimmed(), label.white(), value.dimmed());
+    }
+
+    pub fn debug_item_bool(&self, label: &str, value: bool) {
+        let icon = if value { "✓".green() } else { "✗".red() };
+        let status = if value { "是".green() } else { "否".red() };
+        eprintln!("  {} {}: {} {}", "◈".dimmed(), label.white(), icon, status);
+    }
+
+    pub fn debug_section(&self, title: &str) {
+        eprintln!();
+        eprintln!("  {} {}", "◆".cyan(), title.cyan().bold());
+    }
+
     pub fn attempt_password(
         &self,
         index: usize,
@@ -151,7 +174,7 @@ impl ConsoleUi {
         *last = display_width;
     }
 
-    fn clear_inline(&self) {
+    pub fn clear_inline(&self) {
         let mut last = self.last_inline_len.lock().unwrap();
         if *last > 0 {
             eprintln!();
