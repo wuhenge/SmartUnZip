@@ -71,6 +71,24 @@ impl ConsoleUi {
         eprintln!("  {} {}", "◆".cyan(), title.cyan().bold());
     }
 
+    pub fn print_config(&self, config: &crate::config::AppSettings) {
+        self.debug_header("配置文件参数");
+        self.debug_item("Bandizip 路径", &config.seven_zip_path);
+        eprintln!();
+
+        self.debug_section("解压选项");
+        self.debug_item("嵌套压缩包深度", &config.nested_archive_depth.to_string());
+        self.debug_item_bool("展平嵌套文件夹", config.extract_nested_folders);
+        self.debug_item_bool("自动退出", config.auto_exit);
+        self.debug_item_bool("调试模式", config.debug_mode);
+        self.debug_item_bool("删除空文件夹", config.delete_empty_folders);
+        self.debug_item("创建文件夹阈值", &config.create_folder_threshold.to_string());
+        self.debug_item_bool("提升单层嵌套文件夹", config.flatten_wrapper_folder);
+        self.debug_item_bool("解压后删除源文件", config.delete_source_after_extract);
+        self.debug_item_bool("解压后打开文件夹", config.open_folder_after_extract);
+        eprintln!();
+    }
+
     pub fn attempt_password(
         &self,
         index: usize,

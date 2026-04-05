@@ -536,9 +536,14 @@ fn flatten_wrapper_folder(dir: &str, ui: &Arc<crate::ui::ConsoleUi>) -> Option<S
     }
     
     let folder_name = entry_path.file_name()?.to_string_lossy().to_string();
-    let dest = get_unique_path(&parent.to_string_lossy(), &folder_name);
+    let dest = parent.join(&folder_name);
+    let temp_dest = parent.join(format!("_{folder_name}_tmp"));
     
-    if let Err(e) = std::fs::rename(&entry_path, &dest) {
+    if dest.exists() {
+        let _ = std::fs::rename(&entry_path, &temp_dest);
+        let _ = std::fs::remove_dir_all(&dest);
+        let _ = std::fs::rename(&temp_dest, &dest);
+    } else if let Err(e) = std::fs::rename(&entry_path, &dest) {
         ui.warn(&format!("提升文件夹失败: {}", e));
         return None;
     }
