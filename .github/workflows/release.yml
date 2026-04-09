@@ -20,7 +20,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: cli-${{ runner.os }}
+          key: cli-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
 
       - name: Build CLI
         run: cargo build --release
@@ -30,6 +30,7 @@ jobs:
         with:
           name: smartunzip-cli
           path: target/release/smartunzip-cli.exe
+          if-no-files-found: error
 
   build-gui:
     runs-on: windows-latest
@@ -43,7 +44,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: gui-${{ runner.os }}
+          key: gui-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
       - name: Download CLI artifact
         uses: actions/download-artifact@v4
@@ -58,7 +59,7 @@ jobs:
           Rename-Item smartunzip-cli.exe smartunzip-cli-x86_64-pc-windows-msvc.exe
 
       - name: Build Tauri
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -69,6 +70,7 @@ jobs:
         with:
           name: smartunzip-gui
           path: src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
 
   release:
     runs-on: windows-latest
@@ -86,14 +88,21 @@ jobs:
           name: smartunzip-gui
           path: ./artifacts/
 
+
+
       - name: Generate checksums
+        shell: pwsh
         run: |
           cd artifacts
-          Get-FileHash *.exe, *.msi -Algorithm SHA256 | Format-List > checksums.txt
-          type checksums.txt
+          $files = Get-ChildItem -File | Where-Object { $_.Extension -in '.exe', '.msi' }
+          foreach ($file in $files) {
+            $hash = Get-FileHash $file.FullName -Algorithm SHA256
+            "$($hash.Hash)  $($file.Name)" | Out-File -Append checksums.txt
+          }
+          Get-Content checksums.txt
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/*.exe
