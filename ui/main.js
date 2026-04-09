@@ -58,19 +58,65 @@ async function init() {
         showError('Tauri API 不可用');
         return;
     }
-    
+
     try {
         const configPath = await invoke('get_config_path');
         document.getElementById('config-path').textContent = configPath;
-        
+
         config = await invoke('load_config');
         console.log('Loaded config:', config);
         populateForm(config);
         originalConfig = collectForm();
         document.getElementById('btn-save').disabled = true;
+
+        // 初始化右键菜单状态
+        await initContextMenuStatus();
     } catch (e) {
         console.error('加载配置失败:', e);
         showError('加载配置失败: ' + e);
+    }
+}
+
+// 右键菜单管理
+let contextMenuRegistered = false;
+let isTogglingContextMenu = false;
+
+async function initContextMenuStatus() {
+    try {
+        contextMenuRegistered = await invoke('check_context_menu');
+        document.getElementById('context-menu-toggle').checked = contextMenuRegistered;
+    } catch (e) {
+        console.error('检查右键菜单状态失败:', e);
+    }
+}
+
+async function onContextMenuToggle() {
+    if (isTogglingContextMenu) return;
+    
+    const toggle = document.getElementById('context-menu-toggle');
+    const targetState = toggle.checked;
+    
+    isTogglingContextMenu = true;
+    toggle.disabled = true;
+
+    try {
+        if (targetState) {
+            await invoke('add_context_menu');
+            contextMenuRegistered = true;
+            showToast('右键菜单已启用');
+        } else {
+            await invoke('remove_context_menu');
+            contextMenuRegistered = false;
+            showToast('右键菜单已禁用');
+        }
+    } catch (e) {
+        console.error('操作失败:', e);
+        showToast('操作失败: ' + e, false);
+        // 恢复开关状态
+        toggle.checked = contextMenuRegistered;
+    } finally {
+        isTogglingContextMenu = false;
+        toggle.disabled = false;
     }
 }
 
@@ -342,6 +388,8 @@ function showValidationStatus(success, message) {
 document.getElementById('btn-theme').addEventListener('click', toggleTheme);
 
 document.getElementById('btn-check-update').addEventListener('click', checkForUpdates);
+
+document.getElementById('context-menu-toggle').addEventListener('change', onContextMenuToggle);
 
 async function checkForUpdates() {
     const btn = document.getElementById('btn-check-update');

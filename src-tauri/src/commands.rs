@@ -184,3 +184,18 @@ pub fn check_for_updates() -> update::UpdateInfo {
 pub fn open_url(url: String) -> Result<(), String> {
     open::that(&url).map_err(|e| format!("无法打开链接: {}", e))
 }
+
+#[tauri::command]
+pub fn check_context_menu() -> bool {
+    crate::registry::is_registered()
+}
+
+#[tauri::command]
+pub fn add_context_menu() -> Result<(), String> {
+    crate::registry::add()
+}
+
+#[tauri::command]
+pub fn remove_context_menu() -> Result<(), String> {
+    crate::registry::remove()
+}

@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use winreg::enums::*;
 use winreg::RegKey;
 
@@ -10,10 +9,17 @@ pub fn is_registered() -> bool {
     hkcu.open_subkey(REG_KEY_PATH).is_ok()
 }
 
-fn add_internal() -> Result<(), String> {
-    let exe_path = std::env::current_exe()
-        .map(|p| p.to_string_lossy().to_string())
+pub fn add() -> Result<(), String> {
+    // 获取当前可执行文件路径，并替换为 smartunzip.exe
+    let current_exe = std::env::current_exe()
         .map_err(|e| format!("获取程序路径失败: {}", e))?;
+    
+    let exe_dir = current_exe
+        .parent()
+        .ok_or("无法获取程序目录")?;
+    
+    let exe_path = exe_dir.join("smartunzip.exe");
+    let exe_path_str = exe_path.to_string_lossy().to_string();
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
 
@@ -26,14 +32,14 @@ fn add_internal() -> Result<(), String> {
         .map_err(|e| format!("设置菜单名称失败: {}", e))?;
 
     shell_key
-        .set_value("Icon", &exe_path.as_str())
+        .set_value("Icon", &exe_path_str.as_str())
         .map_err(|e| format!("设置图标失败: {}", e))?;
 
     let (cmd_key, _) = hkcu
         .create_subkey(REG_CMD_PATH)
         .map_err(|e| format!("创建命令键失败: {}", e))?;
 
-    let cmd = format!("\"{}\" \"%1\"", exe_path);
+    let cmd = format!("\"{}\" \"%1\"", exe_path_str);
     cmd_key
         .set_value("", &cmd.as_str())
         .map_err(|e| format!("设置命令失败: {}", e))?;
@@ -41,23 +47,8 @@ fn add_internal() -> Result<(), String> {
     Ok(())
 }
 
-fn remove_internal() -> Result<(), String> {
+pub fn remove() -> Result<(), String> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     hkcu.delete_subkey_all(REG_KEY_PATH)
         .map_err(|e| format!("移除右键菜单失败: {}", e))
-}
-
-// 供命令行使用的带 UI 反馈的函数
-pub fn add(ui: &Arc<crate::ui::ConsoleUi>) {
-    match add_internal() {
-        Ok(()) => ui.success("已添加右键菜单"),
-        Err(e) => ui.error(&e),
-    }
-}
-
-pub fn remove(ui: &Arc<crate::ui::ConsoleUi>) {
-    match remove_internal() {
-        Ok(()) => ui.success("已移除右键菜单"),
-        Err(e) => ui.error(&e),
-    }
 }

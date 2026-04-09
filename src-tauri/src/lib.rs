@@ -1,4 +1,5 @@
 mod commands;
+mod registry;
 mod update;
 
 pub use commands::*;
@@ -15,6 +16,9 @@ pub fn run() {
             commands::validate_bandizip_path,
             commands::check_for_updates,
             commands::open_url,
+            commands::check_context_menu,
+            commands::add_context_menu,
+            commands::remove_context_menu,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -385,6 +385,37 @@ input[type="number"] {
     border-color: var(--accent-violet);
 }
 
+.context-menu-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.context-menu-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-quaternary);
+}
+
+.status-indicator.registered {
+    background: var(--success-green);
+    box-shadow: 0 0 6px rgba(39, 166, 68, 0.4);
+}
+
+.status-indicator.not-registered {
+    background: var(--text-quaternary);
+}
+
 .list-editor {
     width: 100%;
 }
@@ -534,6 +565,30 @@ input[type="number"] {
 .btn-primary:hover {
     background: var(--accent-hover);
     border-color: var(--accent-hover);
+}
+
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-secondary);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    border-color: var(--text-tertiary);
+}
+
+:root[data-theme="light"] .btn-secondary {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: var(--text-secondary);
+}
+
+:root[data-theme="light"] .btn-secondary:hover {
+    background: rgba(0, 0, 0, 0.08);
+    border-color: rgba(0, 0, 0, 0.2);
+    color: var(--text-primary);
 }
 
 .btn-ghost {
