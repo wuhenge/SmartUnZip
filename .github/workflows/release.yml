@@ -118,6 +118,13 @@ jobs:
           }
           Get-Content checksums.txt
 
+      - name: Clean up CLI exe
+        shell: pwsh
+        run: |
+          if (Test-Path artifacts/smartunzip-cli.exe) {
+            Remove-Item artifacts/smartunzip-cli.exe
+          }
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
