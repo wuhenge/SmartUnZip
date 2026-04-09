@@ -6,6 +6,15 @@
   "permissions": [
     "core:default",
     "shell:allow-open",
-    "dialog:default"
+    "dialog:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/smartunzip-cli",
+          "sidecar": true
+        }
+      ]
+    }
   ]
 }

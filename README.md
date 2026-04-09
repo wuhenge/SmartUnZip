@@ -33,7 +33,7 @@ cd SmartUnZip
 cargo build --release
 ```
 
-编译后的可执行文件位于 `target/release/smartunzip.exe`
+编译后的可执行文件位于 `target/release/smartunzip-cli.exe`
 
 ### GUI 配置工具编译
 
@@ -42,7 +42,7 @@ cd src-tauri
 cargo tauri build
 ```
 
-GUI 配置工具位于 `src-tauri/target/release/smartunzip-gui.exe`
+GUI 配置工具位于 `src-tauri/target/release/smartunzip.exe`
 
 ## 配置
 
@@ -101,15 +101,15 @@ GUI 配置工具位于 `src-tauri/target/release/smartunzip-gui.exe`
 
 ```bash
 # 解压单个文件
-smartunzip.exe archive.zip
+smartunzip-cli.exe archive.zip
 
 # 解压多个文件
-smartunzip.exe file1.zip file2.rar
+smartunzip-cli.exe file1.zip file2.rar
 ```
 
 ### GUI 配置工具
 
-运行 `smartunzip-gui.exe` 打开图形界面配置工具：
+运行 `smartunzip.exe` 打开图形界面配置工具：
 
 - 支持深色/浅色主题切换
 - 实时验证 Bandizip 路径
@@ -118,7 +118,7 @@ smartunzip.exe file1.zip file2.rar
 
 ### 交互模式
 
-直接运行 `smartunzip.exe` 进入设置界面：
+直接运行 `smartunzip-cli.exe` 进入设置界面：
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

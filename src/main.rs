@@ -3,7 +3,6 @@ mod config;
 mod files;
 mod registry;
 mod ui;
-mod update;
 
 use std::io::Write;
 use std::sync::Arc;
@@ -36,7 +35,6 @@ fn main() {
         eprintln!();
         eprintln!("  1. {toggle_label}");
         eprintln!("  2. 验证 Bandizip");
-        eprintln!("  3. 检查更新");
         eprintln!("  0. 退出");
         eprintln!();
         eprint!("  请选择: ");
@@ -55,7 +53,6 @@ fn main() {
                 }
             }
             "2" => verify_bandizip(&settings.seven_zip_path, &ui),
-            "3" => check_for_updates(&ui),
             _ => {}
         }
 
@@ -221,33 +218,6 @@ fn verify_bandizip(path: &str, ui: &Arc<ui::ConsoleUi>) {
         Err(e) => {
             ui.error(&format!("验证失败: {e}"));
         }
-    }
-}
-
-fn check_for_updates(ui: &Arc<ui::ConsoleUi>) {
-    eprintln!();
-    ui.info(&format!("当前版本: v{}", update::get_current_version()));
-    ui.info("正在检查更新...");
-
-    let result = update::check_update();
-
-    if let Some(error) = result.error {
-        eprintln!();
-        ui.error(&format!("检查更新失败: {error}"));
-        eprintln!();
-        ui.info("请手动访问以下链接检查更新：");
-        eprintln!("  {}", update::get_releases_url());
-    } else if result.has_update {
-        eprintln!();
-        ui.success(&format!("发现新版本: v{}", result.latest_version));
-        eprintln!();
-        ui.info("请访问以下链接下载最新版本：");
-        eprintln!("  {}", result.download_url);
-    } else {
-        ui.success("当前版本已是最新！");
-        eprintln!();
-        ui.info("项目地址：");
-        eprintln!("  {}", result.download_url);
     }
 }
 

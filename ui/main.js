@@ -437,14 +437,14 @@ async function checkForUpdates() {
         const result = await invoke('check_for_updates');
         
         if (result.error) {
-            showToast(`检查更新失败: ${result.error}`, false);
+            showUpdateErrorModal(result.error);
         } else if (result.has_update) {
             showUpdateModal(result.current_version, result.latest_version, result.download_url);
         } else {
             showToast(`当前版本 v${result.current_version} 已是最新`, true);
         }
     } catch (e) {
-        showToast('检查更新失败: ' + e, false);
+        showUpdateErrorModal(e.toString());
     } finally {
         btn.innerHTML = originalContent;
         btn.disabled = false;
@@ -452,18 +452,27 @@ async function checkForUpdates() {
 }
 
 function showUpdateModal(currentVersion, latestVersion, downloadUrl) {
+    const existingModal = document.getElementById('update-modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const iconSvg = `<svg class="validation-icon success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>`;
+
     const overlay = document.createElement('div');
     overlay.id = 'update-modal-overlay';
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
-        <div class="modal">
+        <div class="modal validation-modal">
+            <div class="validation-icon-wrapper">
+                ${iconSvg}
+            </div>
             <div class="modal-header">
                 <h3>发现新版本</h3>
             </div>
             <div class="modal-body">
                 <p>当前版本: v${currentVersion}</p>
                 <p>最新版本: v${latestVersion}</p>
-                <p style="margin-top: 12px;">是否前往下载页面？</p>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-ghost" id="update-modal-cancel">稍后再说</button>
@@ -474,11 +483,13 @@ function showUpdateModal(currentVersion, latestVersion, downloadUrl) {
     
     document.body.appendChild(overlay);
     
-    setTimeout(() => overlay.classList.add('show'), 10);
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
     
     document.getElementById('update-modal-cancel').addEventListener('click', () => {
         overlay.classList.remove('show');
-        setTimeout(() => overlay.remove(), 300);
+        setTimeout(() => overlay.remove(), 200);
     });
     
     document.getElementById('update-modal-confirm').addEventListener('click', async () => {
@@ -488,13 +499,73 @@ function showUpdateModal(currentVersion, latestVersion, downloadUrl) {
             window.open(downloadUrl, '_blank');
         }
         overlay.classList.remove('show');
-        setTimeout(() => overlay.remove(), 300);
+        setTimeout(() => overlay.remove(), 200);
     });
     
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) {
             overlay.classList.remove('show');
-            setTimeout(() => overlay.remove(), 300);
+            setTimeout(() => overlay.remove(), 200);
+        }
+    });
+}
+
+function showUpdateErrorModal(errorMessage) {
+    const GITHUB_URL = 'https://github.com/wuhenge/SmartUnZip';
+    const existingModal = document.getElementById('update-error-modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const iconSvg = `<svg class="validation-icon error" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'update-error-modal-overlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+        <div class="modal validation-modal">
+            <div class="validation-icon-wrapper">
+                ${iconSvg}
+            </div>
+            <div class="modal-header">
+                <h3>检查更新失败</h3>
+            </div>
+            <div class="modal-body">
+                <p>无法连接到更新服务器</p>
+                <p style="margin-top: 8px; color: var(--text-secondary); font-size: 13px;">${errorMessage}</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="update-error-modal-close">关闭</button>
+                <button class="btn btn-primary" id="update-error-modal-open">打开开源地址</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
+    
+    document.getElementById('update-error-modal-close').addEventListener('click', () => {
+        overlay.classList.remove('show');
+        setTimeout(() => overlay.remove(), 200);
+    });
+    
+    document.getElementById('update-error-modal-open').addEventListener('click', async () => {
+        try {
+            await invoke('open_url', { url: GITHUB_URL });
+        } catch (e) {
+            window.open(GITHUB_URL, '_blank');
+        }
+        overlay.classList.remove('show');
+        setTimeout(() => overlay.remove(), 200);
+    });
+    
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            overlay.classList.remove('show');
+            setTimeout(() => overlay.remove(), 200);
         }
     });
 }

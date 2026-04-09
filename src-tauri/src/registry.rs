@@ -18,7 +18,7 @@ pub fn add() -> Result<(), String> {
         .parent()
         .ok_or("无法获取程序目录")?;
     
-    let exe_path = exe_dir.join("smartunzip.exe");
+    let exe_path = exe_dir.join("smartunzip-cli.exe");
     let exe_path_str = exe_path.to_string_lossy().to_string();
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
