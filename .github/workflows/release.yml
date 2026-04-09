@@ -54,7 +54,8 @@ jobs:
       - name: Rename CLI binary for Tauri
         run: |
           cd src-tauri/binaries
-          ren smartunzip-cli.exe smartunzip-cli-x86_64-pc-windows-msvc.exe
+          if (Test-Path smartunzip-cli-x86_64-pc-windows-msvc.exe) { Remove-Item smartunzip-cli-x86_64-pc-windows-msvc.exe }
+          Rename-Item smartunzip-cli.exe smartunzip-cli-x86_64-pc-windows-msvc.exe
 
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
