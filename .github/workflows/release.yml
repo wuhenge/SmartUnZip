@@ -9,20 +9,94 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-cli:
     runs-on: windows-latest
-    
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      
-      - name: Build
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: cli-${{ runner.os }}
+
+      - name: Build CLI
         run: cargo build --release
-      
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smartunzip-cli
+          path: target/release/smartunzip-cli.exe
+
+  build-gui:
+    runs-on: windows-latest
+    needs: build-cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: gui-${{ runner.os }}
+
+      - name: Download CLI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: smartunzip-cli
+          path: src-tauri/binaries/
+
+      - name: Rename CLI binary for Tauri
+        run: |
+          cd src-tauri/binaries
+          ren smartunzip-cli.exe smartunzip-cli-x86_64-pc-windows-msvc.exe
+
+      - name: Build Tauri
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: ./src-tauri
+          args: --release
+
+      - name: Upload GUI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smartunzip-gui
+          path: src-tauri/target/release/bundle/msi/*.msi
+
+  release:
+    runs-on: windows-latest
+    needs: [build-cli, build-gui]
+    steps:
+      - name: Download CLI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: smartunzip-cli
+          path: ./artifacts/
+
+      - name: Download GUI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: smartunzip-gui
+          path: ./artifacts/
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          Get-FileHash *.exe, *.msi -Algorithm SHA256 | Format-List > checksums.txt
+          type checksums.txt
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: target/release/smartunzip-cli.exe
+          files: |
+            artifacts/*.exe
+            artifacts/*.msi
+            artifacts/checksums.txt
           generate_release_notes: true
