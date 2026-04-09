@@ -101,28 +101,10 @@ jobs:
             $newName = $msi.Name -replace '_x64_en-US', '_x64_zh-CN'
             Rename-Item $msi.Name $newName
           }
-          $nsis = Get-ChildItem *.exe | Select-Object -First 1
+          $nsis = Get-ChildItem -Filter "*setup.exe" | Select-Object -First 1
           if ($nsis) {
             $newName = $nsis.Name -replace '_x64-setup', '_x64_zh-CN-setup'
             Rename-Item $nsis.Name $newName
-          }
-
-      - name: Generate checksums
-        shell: pwsh
-        run: |
-          cd artifacts
-          $files = Get-ChildItem -File
-          foreach ($file in $files) {
-            $hash = Get-FileHash $file.FullName -Algorithm SHA256
-            "$($hash.Hash)  $($file.Name)" | Out-File -Append checksums.txt
-          }
-          Get-Content checksums.txt
-
-      - name: Clean up CLI exe
-        shell: pwsh
-        run: |
-          if (Test-Path artifacts/smartunzip-cli.exe) {
-            Remove-Item artifacts/smartunzip-cli.exe
           }
 
       - name: Create Release
@@ -130,7 +112,6 @@ jobs:
         with:
           files: |
             artifacts/*.msi
-            artifacts/*.exe
+            artifacts/*setup.exe
             artifacts/*.zip
-            artifacts/checksums.txt
           generate_release_notes: true
