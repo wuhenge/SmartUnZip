@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartUnZip 设置</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="app-title">
+                SmartUnZip 设置
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-ghost btn-sm" id="btn-check-update" title="检查更新">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 4v6h-6"/>
+                        <path d="M1 20v-6h6"/>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                    检查更新
+                </button>
+                <button class="btn btn-ghost btn-sm" id="btn-theme" title="切换主题">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="theme-icon-dark">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="theme-icon-light" style="display:none">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/>
+                        <line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <span id="theme-text">浅色</span>
+                </button>
+                <button class="btn btn-ghost btn-sm" id="btn-reset">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                        <path d="M3 3v5h5"/>
+                    </svg>
+                    重置
+                </button>
+                <button class="btn btn-primary btn-sm" id="btn-save">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                        <polyline points="17,21 17,13 7,13 7,21"/>
+                        <polyline points="7,3 7,8 15,8"/>
+                    </svg>
+                    保存
+                </button>
+            </div>
+        </header>
+
+        <main class="app-content">
+            <div class="config-path">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                </svg>
+                <span id="config-path">加载中...</span>
+            </div>
+
+            <section class="section">
+                <div class="section-header">
+                    <h2 class="section-title">基本设置</h2>
+                </div>
+                <div class="section-content">
+                    <div class="form-group with-description">
+                        <label class="form-label">Bandizip 路径</label>
+                        <p class="form-description">指定 bz.exe 的完整路径</p>
+                        <div class="form-control path-input-group">
+                            <input type="text" id="seven-zip-path" placeholder="C:\Program Files\Bandizip\bz.exe">
+                            <button class="btn-browse" id="btn-browse">浏览</button>
+                        </div>
+                        <div class="validation-status" id="validation-status"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-header">
+                    <h2 class="section-title">解压选项</h2>
+                </div>
+                <div class="section-content">
+                    <div class="form-group">
+                        <label class="form-label">自动退出</label>
+                        <div class="form-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="auto-exit">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">展平嵌套文件夹</label>
+                        <div class="form-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="extract-nested">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">调试模式</label>
+                        <div class="form-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="debug-mode">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">删除空文件夹</label>
+                        <div class="form-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="delete-empty">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">展平包装文件夹</label>
+                        <div class="form-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="flatten-wrapper">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">解压后删除源文件</label>
+                        <div class="form-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="delete-source">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">解压后打开文件夹</label>
+                        <div class="form-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="open-folder">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">嵌套解压深度</label>
+                        <div class="form-control">
+                            <input type="number" id="nested-depth" min="0" max="10" value="0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">创建文件夹阈值</label>
+                        <div class="form-control">
+                            <input type="number" id="folder-threshold" min="0" max="100" value="1">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-header">
+                    <h2 class="section-title">密码列表</h2>
+                </div>
+                <div class="section-content">
+                    <div class="form-group">
+                        <div class="list-editor" id="passwords-list">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-header">
+                    <h2 class="section-title">删除文件列表</h2>
+                </div>
+                <div class="section-content">
+                    <div class="form-group">
+                        <div class="list-editor" id="delete-files-list">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-header">
+                    <h2 class="section-title">删除文件夹列表</h2>
+                </div>
+                <div class="section-content">
+                    <div class="form-group">
+                        <div class="list-editor" id="delete-folders-list">
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div class="toast" id="toast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22,4 12,14.01 9,11.01"/>
+        </svg>
+        <span id="toast-message">保存成功</span>
+    </div>
+
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-title">确认重置</div>
+            <div class="modal-message">确定要重置为默认设置吗？此操作不可撤销。</div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost btn-sm" id="modal-cancel">取消</button>
+                <button class="btn btn-primary btn-sm" id="modal-confirm">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>

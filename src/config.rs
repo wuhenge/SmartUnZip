@@ -5,14 +5,6 @@ use std::path::PathBuf;
 pub struct AppSettings {
     #[serde(rename = "SevenZipPath", default)]
     pub seven_zip_path: String,
-    #[serde(rename = "Passwords", default)]
-    pub passwords: Vec<String>,
-    #[serde(rename = "DeleteFiles", default)]
-    pub delete_files: Vec<String>,
-    #[serde(rename = "DeleteFolders", default)]
-    pub delete_folders: Vec<String>,
-    #[serde(rename = "NestedArchiveDepth", default = "default_nested_depth")]
-    pub nested_archive_depth: u32,
     #[serde(rename = "AutoExit", default = "default_auto_exit")]
     pub auto_exit: bool,
     #[serde(
@@ -27,14 +19,22 @@ pub struct AppSettings {
         default = "default_delete_empty_folders"
     )]
     pub delete_empty_folders: bool,
-    #[serde(rename = "CreateFolderThreshold", default = "default_create_folder_threshold")]
-    pub create_folder_threshold: u32,
     #[serde(rename = "FlattenWrapperFolder", default = "default_flatten_wrapper_folder")]
     pub flatten_wrapper_folder: bool,
     #[serde(rename = "DeleteSourceAfterExtract", default = "default_delete_source_after_extract")]
     pub delete_source_after_extract: bool,
     #[serde(rename = "OpenFolderAfterExtract", default = "default_open_folder_after_extract")]
     pub open_folder_after_extract: bool,
+    #[serde(rename = "NestedArchiveDepth", default = "default_nested_depth")]
+    pub nested_archive_depth: u32,
+    #[serde(rename = "CreateFolderThreshold", default = "default_create_folder_threshold")]
+    pub create_folder_threshold: u32,
+    #[serde(rename = "Passwords", default)]
+    pub passwords: Vec<String>,
+    #[serde(rename = "DeleteFiles", default)]
+    pub delete_files: Vec<String>,
+    #[serde(rename = "DeleteFolders", default)]
+    pub delete_folders: Vec<String>,
 }
 
 fn default_nested_depth() -> u32 {
@@ -83,15 +83,15 @@ struct ConfigFile {
 const DEFAULT_CONFIG: &str = r#"{
   "AppSettings": {
     "SevenZipPath": "C:\\Program Files\\Bandizip\\bz.exe",
-    "NestedArchiveDepth": 0,
     "AutoExit": false,
     "ExtractNestedFolders": false,
     "DebugMode": false,
     "DeleteEmptyFolders": false,
-    "CreateFolderThreshold": 1,
     "FlattenWrapperFolder": false,
     "DeleteSourceAfterExtract": false,
     "OpenFolderAfterExtract": false,
+    "NestedArchiveDepth": 0,
+    "CreateFolderThreshold": 1,
     "Passwords": [
       "1234",
       "www",
@@ -112,15 +112,15 @@ const DEFAULT_CONFIG: &str = r#"{
 const DEFAULT_CONFIG: &str = r#"{
   "AppSettings": {
     "SevenZipPath": "",
-    "NestedArchiveDepth": 0,
     "AutoExit": false,
     "ExtractNestedFolders": false,
     "DebugMode": false,
     "DeleteEmptyFolders": false,
-    "CreateFolderThreshold": 1,
     "FlattenWrapperFolder": false,
     "DeleteSourceAfterExtract": false,
     "OpenFolderAfterExtract": false,
+    "NestedArchiveDepth": 0,
+    "CreateFolderThreshold": 1,
     "Passwords": [
       "1234",
       "www",

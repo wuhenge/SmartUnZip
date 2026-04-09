@@ -1,8 +1,13 @@
 # Rust build artifacts
 /target/
 **/*.rs.bk
-*.exe
-*.pdb
+
+# Cargo
+Cargo.lock
+
+# Tauri
+/src-tauri/gen/
+/src-tauri/target/
 
 # IDE
 .vscode/
@@ -16,13 +21,5 @@
 Thumbs.db
 desktop.ini
 
-# Build
+# Build output
 /dist/
-*.zip
-*.tar.gz
-
-# Config generated at runtime
-appsettings.json
-
-# Cargo
-Cargo.lock

@@ -1,0 +1,427 @@
+const invoke = window.__TAURI__?.core?.invoke;
+const openDialog = window.__TAURI__?.dialog?.open;
+
+let config = null;
+let originalConfig = null;
+
+function updateSaveButton() {
+    const saveBtn = document.getElementById('btn-save');
+    const currentConfig = collectForm();
+    const hasChanges = JSON.stringify(currentConfig) !== JSON.stringify(originalConfig);
+    saveBtn.disabled = !hasChanges;
+}
+
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    setTheme(savedTheme);
+}
+
+function setTheme(theme) {
+    const root = document.documentElement;
+    const darkIcon = document.getElementById('theme-icon-dark');
+    const lightIcon = document.getElementById('theme-icon-light');
+    const themeText = document.getElementById('theme-text');
+    
+    if (theme === 'light') {
+        root.setAttribute('data-theme', 'light');
+        darkIcon.style.display = 'none';
+        lightIcon.style.display = 'block';
+        themeText.textContent = '深色';
+    } else {
+        root.removeAttribute('data-theme');
+        darkIcon.style.display = 'block';
+        lightIcon.style.display = 'none';
+        themeText.textContent = '浅色';
+    }
+    
+    localStorage.setItem('theme', theme);
+}
+
+function toggleTheme() {
+    const currentTheme = localStorage.getItem('theme') || 'dark';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+}
+
+function showError(message) {
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toast-message');
+    toastMessage.textContent = message;
+    toast.className = 'toast show';
+    setTimeout(() => {
+        toast.className = 'toast';
+    }, 5000);
+}
+
+async function init() {
+    if (!invoke) {
+        showError('Tauri API 不可用');
+        return;
+    }
+    
+    try {
+        const configPath = await invoke('get_config_path');
+        document.getElementById('config-path').textContent = configPath;
+        
+        config = await invoke('load_config');
+        console.log('Loaded config:', config);
+        populateForm(config);
+        originalConfig = collectForm();
+        document.getElementById('btn-save').disabled = true;
+    } catch (e) {
+        console.error('加载配置失败:', e);
+        showError('加载配置失败: ' + e);
+    }
+}
+
+function populateForm(config) {
+    document.getElementById('seven-zip-path').value = config.SevenZipPath || '';
+    document.getElementById('nested-depth').value = config.NestedArchiveDepth || 0;
+    document.getElementById('auto-exit').checked = config.AutoExit || false;
+    document.getElementById('extract-nested').checked = config.ExtractNestedFolders || false;
+    document.getElementById('delete-empty').checked = config.DeleteEmptyFolders || false;
+    document.getElementById('folder-threshold').value = config.CreateFolderThreshold || 1;
+    document.getElementById('flatten-wrapper').checked = config.FlattenWrapperFolder || false;
+    document.getElementById('delete-source').checked = config.DeleteSourceAfterExtract || false;
+    document.getElementById('open-folder').checked = config.OpenFolderAfterExtract || false;
+    document.getElementById('debug-mode').checked = config.DebugMode || false;
+    
+    renderList('passwords-list', config.Passwords || [], 'password');
+    renderList('delete-files-list', config.DeleteFiles || [], 'file');
+    renderList('delete-folders-list', config.DeleteFolders || [], 'folder');
+    
+    setupChangeListeners();
+}
+
+function setupChangeListeners() {
+    const inputs = document.querySelectorAll('input[type="text"], input[type="number"], input[type="checkbox"]');
+    inputs.forEach(input => {
+        input.addEventListener('input', updateSaveButton);
+        input.addEventListener('change', updateSaveButton);
+    });
+}
+
+function renderList(containerId, items, type) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    
+    const listItems = document.createElement('div');
+    listItems.className = 'list-items';
+    
+    items.forEach((item, index) => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'list-item';
+        itemEl.innerHTML = `
+            <input type="text" value="${escapeHtml(item)}" data-index="${index}">
+            <button class="list-item-remove" data-index="${index}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        `;
+        listItems.appendChild(itemEl);
+    });
+    
+    container.appendChild(listItems);
+    
+    const addBtn = document.createElement('button');
+    addBtn.className = 'list-add';
+    addBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        添加${type === 'password' ? '密码' : type === 'file' ? '文件' : '文件夹'}
+    `;
+    container.appendChild(addBtn);
+    
+    listItems.querySelectorAll('.list-item-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const index = parseInt(e.currentTarget.dataset.index);
+            items.splice(index, 1);
+            renderList(containerId, items, type);
+            updateSaveButton();
+        });
+    });
+    
+    listItems.querySelectorAll('input').forEach(input => {
+        input.addEventListener('input', updateSaveButton);
+        input.addEventListener('change', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            items[index] = e.target.value;
+            updateSaveButton();
+        });
+    });
+    
+    addBtn.addEventListener('click', () => {
+        items.push('');
+        renderList(containerId, items, type);
+        const inputs = listItems.querySelectorAll('input');
+        if (inputs.length > 0) {
+            inputs[inputs.length - 1].focus();
+        }
+        updateSaveButton();
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function collectForm() {
+    return {
+        SevenZipPath: document.getElementById('seven-zip-path').value,
+        AutoExit: document.getElementById('auto-exit').checked,
+        ExtractNestedFolders: document.getElementById('extract-nested').checked,
+        DebugMode: document.getElementById('debug-mode').checked,
+        DeleteEmptyFolders: document.getElementById('delete-empty').checked,
+        FlattenWrapperFolder: document.getElementById('flatten-wrapper').checked,
+        DeleteSourceAfterExtract: document.getElementById('delete-source').checked,
+        OpenFolderAfterExtract: document.getElementById('open-folder').checked,
+        NestedArchiveDepth: parseInt(document.getElementById('nested-depth').value) || 0,
+        CreateFolderThreshold: parseInt(document.getElementById('folder-threshold').value) || 1,
+        Passwords: collectListItems('passwords-list'),
+        DeleteFiles: collectListItems('delete-files-list'),
+        DeleteFolders: collectListItems('delete-folders-list'),
+    };
+}
+
+function collectListItems(containerId) {
+    const container = document.getElementById(containerId);
+    const inputs = container.querySelectorAll('.list-item input');
+    return Array.from(inputs).map(input => input.value).filter(v => v.trim() !== '');
+}
+
+function showToast(message, success = true) {
+    const toast = document.getElementById('toast');
+    const toastMessage = document.getElementById('toast-message');
+    
+    toastMessage.textContent = message;
+    toast.className = 'toast show' + (success ? ' success' : '');
+    
+    setTimeout(() => {
+        toast.className = 'toast';
+    }, 3000);
+}
+
+document.getElementById('btn-save').addEventListener('click', async () => {
+    try {
+        const settings = collectForm();
+        await invoke('save_config', { settings });
+        originalConfig = settings;
+        document.getElementById('btn-save').disabled = true;
+        showToast('保存成功');
+    } catch (e) {
+        console.error('保存失败:', e);
+        showToast('保存失败: ' + e, false);
+    }
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+    showModal();
+});
+
+function showModal() {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.classList.add('show');
+}
+
+function hideModal() {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.classList.remove('show');
+}
+
+function resetConfig() {
+    config = {
+        SevenZipPath: 'C:\\Program Files\\Bandizip\\bz.exe',
+        AutoExit: false,
+        ExtractNestedFolders: false,
+        DebugMode: false,
+        DeleteEmptyFolders: false,
+        FlattenWrapperFolder: false,
+        DeleteSourceAfterExtract: false,
+        OpenFolderAfterExtract: false,
+        NestedArchiveDepth: 0,
+        CreateFolderThreshold: 1,
+        Passwords: ['1234', 'www', '1111'],
+        DeleteFiles: ['说明.txt', '更多资源.url'],
+        DeleteFolders: ['说明'],
+    };
+    populateForm(config);
+    document.getElementById('btn-save').disabled = false;
+    showToast('已重置为默认设置');
+}
+
+document.getElementById('modal-cancel').addEventListener('click', hideModal);
+
+document.getElementById('modal-confirm').addEventListener('click', () => {
+    hideModal();
+    resetConfig();
+});
+
+document.getElementById('modal-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'modal-overlay') {
+        hideModal();
+    }
+});
+
+document.getElementById('btn-browse').addEventListener('click', async () => {
+    if (!openDialog) {
+        showError('文件对话框不可用');
+        return;
+    }
+    try {
+        const selected = await openDialog({
+            multiple: false,
+            filters: [{
+                name: 'Executable',
+                extensions: ['exe']
+            }]
+        });
+        if (selected) {
+            document.getElementById('seven-zip-path').value = selected;
+            validatePath(selected);
+        }
+    } catch (e) {
+        console.error('选择文件失败:', e);
+    }
+});
+
+document.getElementById('seven-zip-path').addEventListener('blur', () => {
+    const path = document.getElementById('seven-zip-path').value;
+    if (path) {
+        validatePath(path);
+    }
+});
+
+async function validatePath(path) {
+    const statusEl = document.getElementById('validation-status');
+    statusEl.className = 'validation-status';
+    statusEl.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+        </svg>
+        验证中...
+    `;
+    
+    try {
+        const result = await invoke('validate_bandizip_path', { path });
+        showValidationStatus(result.valid, result.message);
+    } catch (e) {
+        showValidationStatus(false, '验证失败: ' + e);
+    }
+}
+
+function showValidationStatus(success, message) {
+    const statusEl = document.getElementById('validation-status');
+    statusEl.className = 'validation-status ' + (success ? 'success' : 'error');
+    
+    if (success) {
+        statusEl.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22,4 12,14.01 9,11.01"/>
+            </svg>
+            ${message}
+        `;
+    } else {
+        statusEl.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            ${message}
+        `;
+    }
+}
+
+document.getElementById('btn-theme').addEventListener('click', toggleTheme);
+
+document.getElementById('btn-check-update').addEventListener('click', checkForUpdates);
+
+async function checkForUpdates() {
+    const btn = document.getElementById('btn-check-update');
+    const originalContent = btn.innerHTML;
+    
+    btn.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
+            <path d="M23 4v6h-6"/>
+            <path d="M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+        检查中...
+    `;
+    btn.disabled = true;
+    
+    try {
+        const result = await invoke('check_for_updates');
+        
+        if (result.error) {
+            showToast(`检查更新失败: ${result.error}`, false);
+        } else if (result.has_update) {
+            showUpdateModal(result.current_version, result.latest_version, result.download_url);
+        } else {
+            showToast(`当前版本 v${result.current_version} 已是最新`, true);
+        }
+    } catch (e) {
+        showToast('检查更新失败: ' + e, false);
+    } finally {
+        btn.innerHTML = originalContent;
+        btn.disabled = false;
+    }
+}
+
+function showUpdateModal(currentVersion, latestVersion, downloadUrl) {
+    const overlay = document.createElement('div');
+    overlay.id = 'update-modal-overlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+        <div class="modal">
+            <div class="modal-header">
+                <h3>发现新版本</h3>
+            </div>
+            <div class="modal-body">
+                <p>当前版本: v${currentVersion}</p>
+                <p>最新版本: v${latestVersion}</p>
+                <p style="margin-top: 12px;">是否前往下载页面？</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" id="update-modal-cancel">稍后再说</button>
+                <button class="btn btn-primary" id="update-modal-confirm">前往下载</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    setTimeout(() => overlay.classList.add('show'), 10);
+    
+    document.getElementById('update-modal-cancel').addEventListener('click', () => {
+        overlay.classList.remove('show');
+        setTimeout(() => overlay.remove(), 300);
+    });
+    
+    document.getElementById('update-modal-confirm').addEventListener('click', async () => {
+        try {
+            await invoke('open_url', { url: downloadUrl });
+        } catch (e) {
+            window.open(downloadUrl, '_blank');
+        }
+        overlay.classList.remove('show');
+        setTimeout(() => overlay.remove(), 300);
+    });
+    
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            overlay.classList.remove('show');
+            setTimeout(() => overlay.remove(), 300);
+        }
+    });
+}
+
+initTheme();
+init();

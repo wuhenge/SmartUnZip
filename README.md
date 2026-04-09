@@ -11,6 +11,7 @@
 - 📦 支持解压嵌套压缩包（如 zip 内包含 zip）
 - ⚙️ 可配置的密码列表和解压选项
 - 🔄 内置检查更新功能
+- 🎨 图形界面配置工具（Tauri GUI）
 
 ## 系统要求
 
@@ -34,9 +35,18 @@ cargo build --release
 
 编译后的可执行文件位于 `target/release/smartunzip.exe`
 
+### GUI 配置工具编译
+
+```bash
+cd src-tauri
+cargo tauri build
+```
+
+GUI 配置工具位于 `src-tauri/target/release/smartunzip-gui.exe`
+
 ## 配置
 
-首次运行会自动生成 `appsettings.json` 配置文件：
+首次运行会自动生成 `appsettings.json` 配置文件，也可通过 GUI 工具进行可视化配置：
 
 ```json
 {
@@ -97,6 +107,15 @@ smartunzip.exe archive.zip
 smartunzip.exe file1.zip file2.rar
 ```
 
+### GUI 配置工具
+
+运行 `smartunzip-gui.exe` 打开图形界面配置工具：
+
+- 支持深色/浅色主题切换
+- 实时验证 Bandizip 路径
+- 可视化编辑密码列表和删除规则
+- 自动检测配置变更，保存按钮智能启用
+
 ### 交互模式
 
 直接运行 `smartunzip.exe` 进入设置界面：
@@ -126,7 +145,27 @@ src/
 ├── files.rs       # 文件操作
 ├── registry.rs    # Windows 注册表操作
 └── ui.rs          # 控制台 UI
+
+src-tauri/
+├── src/
+│   ├── main.rs      # Tauri 主程序
+│   ├── lib.rs       # 库入口
+│   └── commands.rs  # IPC 命令
+├── icons/           # 应用图标
+└── tauri.conf.json  # Tauri 配置
+
+ui/
+├── index.html       # GUI 界面
+├── styles.css       # 样式表
+└── main.js          # 前端逻辑
 ```
+
+## 技术栈
+
+- **后端**: Rust + Tauri 2
+- **前端**: HTML5 + CSS3 + JavaScript (Vanilla)
+- **UI 设计**: Linear 启发式设计系统
+- **解压引擎**: Bandizip (bz.exe)
 
 ## 许可证
 
@@ -139,6 +178,7 @@ src/
 ## 致谢
 
 - [Bandizip](https://www.bandisoft.com/bandizip/) - 解压引擎
+- [Tauri](https://tauri.app/) - 跨平台应用框架
 - [serde](https://serde.rs/) - 序列化框架
 - [colored](https://crates.io/crates/colored) - 终端彩色输出
 - [ureq](https://docs.rs/ureq/) - HTTP 客户端
