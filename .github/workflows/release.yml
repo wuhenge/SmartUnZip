@@ -9,32 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build-cli:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: cli-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-
-      - name: Build CLI
-        run: cargo build --release
-
-      - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: smartunzip-cli
-          path: target/release/smartunzip-cli.exe
-          if-no-files-found: error
-
   build-gui:
     runs-on: windows-latest
-    needs: build-cli
     steps:
       - uses: actions/checkout@v4
 
@@ -46,17 +22,13 @@ jobs:
         with:
           key: gui-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
 
-      - name: Download CLI artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: smartunzip-cli
-          path: src-tauri/binaries/
+      - name: Build CLI
+        run: cargo build --release
 
-      - name: Rename CLI binary for Tauri
+      - name: Copy CLI for Tauri
         run: |
-          cd src-tauri/binaries
-          if (Test-Path smartunzip-cli-x86_64-pc-windows-msvc.exe) { Remove-Item smartunzip-cli-x86_64-pc-windows-msvc.exe }
-          Rename-Item smartunzip-cli.exe smartunzip-cli-x86_64-pc-windows-msvc.exe
+          New-Item -ItemType Directory -Force -Path src-tauri/binaries
+          Copy-Item target/release/smartunzip-cli.exe src-tauri/binaries/smartunzip-cli-x86_64-pc-windows-msvc.exe
 
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0.5
@@ -65,36 +37,81 @@ jobs:
         with:
           projectPath: ./src-tauri
 
-      - name: Upload GUI artifact
+      - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
         with:
-          name: smartunzip-gui
+          name: smartunzip-msi
           path: src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+      - name: Upload NSIS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smartunzip-nsis
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+      - name: Create portable ZIP
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
+          $zipName = "smartunzip_${version}_x64_zh-CN_portable.zip"
+          $tempDir = "src-tauri/target/release/portable"
+          New-Item -ItemType Directory -Force -Path $tempDir
+          Copy-Item "src-tauri/target/release/smartunzip.exe" "$tempDir/"
+          Copy-Item "target/release/smartunzip-cli.exe" "$tempDir/"
+          Compress-Archive -Path "$tempDir/*" -DestinationPath "src-tauri/target/release/$zipName"
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smartunzip-portable
+          path: src-tauri/target/release/*.zip
           if-no-files-found: error
 
   release:
     runs-on: windows-latest
-    needs: [build-cli, build-gui]
+    needs: [build-gui]
     steps:
-      - name: Download CLI artifact
+      - name: Download MSI artifact
         uses: actions/download-artifact@v4
         with:
-          name: smartunzip-cli
+          name: smartunzip-msi
           path: ./artifacts/
 
-      - name: Download GUI artifact
+      - name: Download NSIS artifact
         uses: actions/download-artifact@v4
         with:
-          name: smartunzip-gui
+          name: smartunzip-nsis
           path: ./artifacts/
 
+      - name: Download portable artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: smartunzip-portable
+          path: ./artifacts/
 
+      - name: Rename files to Chinese
+        shell: pwsh
+        run: |
+          cd artifacts
+          $msi = Get-ChildItem *.msi | Select-Object -First 1
+          if ($msi) {
+            $newName = $msi.Name -replace '_x64_en-US', '_x64_zh-CN'
+            Rename-Item $msi.Name $newName
+          }
+          $nsis = Get-ChildItem *.exe | Select-Object -First 1
+          if ($nsis) {
+            $newName = $nsis.Name -replace '_x64-setup', '_x64_zh-CN-setup'
+            Rename-Item $nsis.Name $newName
+          }
 
       - name: Generate checksums
         shell: pwsh
         run: |
           cd artifacts
-          $files = Get-ChildItem -File | Where-Object { $_.Extension -in '.exe', '.msi' }
+          $files = Get-ChildItem -File
           foreach ($file in $files) {
             $hash = Get-FileHash $file.FullName -Algorithm SHA256
             "$($hash.Hash)  $($file.Name)" | Out-File -Append checksums.txt
@@ -105,7 +122,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/*.exe
             artifacts/*.msi
+            artifacts/*.exe
+            artifacts/*.zip
             artifacts/checksums.txt
           generate_release_notes: true
