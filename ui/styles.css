@@ -772,23 +772,6 @@ input[type="number"] {
     flex: 1;
 }
 
-.btn-browse {
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--border-standard);
-    border-radius: var(--radius-md);
-    color: var(--text-tertiary);
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-}
-
-.btn-browse:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-secondary);
-}
-
 .validation-status {
     margin-top: 8px;
     font-size: 12px;
@@ -816,5 +799,61 @@ input[type="number"] {
 }
 
 :root[data-theme="light"] .validation-status.error {
+    color: #ef4444;
+}
+
+/* 验证弹窗样式 */
+.validation-modal {
+    text-align: center;
+    padding: 32px 24px 24px;
+}
+
+.validation-modal .modal-header {
+    margin-bottom: 8px;
+}
+
+.validation-modal .modal-header h3 {
+    font-size: 16px;
+    font-weight: 510;
+    color: var(--text-primary);
+}
+
+.validation-modal .modal-body {
+    margin-bottom: 24px;
+}
+
+.validation-modal .modal-body p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.validation-modal .modal-footer {
+    justify-content: center;
+}
+
+.validation-icon-wrapper {
+    margin-bottom: 16px;
+}
+
+.validation-icon {
+    width: 48px;
+    height: 48px;
+    stroke-width: 1.5;
+}
+
+.validation-icon.success {
+    color: var(--success-green);
+}
+
+.validation-icon.error {
+    color: #ff6b6b;
+}
+
+:root[data-theme="light"] .validation-icon.success {
+    color: #22c55e;
+}
+
+:root[data-theme="light"] .validation-icon.error {
     color: #ef4444;
 }

@@ -344,45 +344,73 @@ document.getElementById('seven-zip-path').addEventListener('blur', () => {
 });
 
 async function validatePath(path) {
-    const statusEl = document.getElementById('validation-status');
-    statusEl.className = 'validation-status';
-    statusEl.innerHTML = `
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
-            <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-        </svg>
-        验证中...
-    `;
-    
+    const browseBtn = document.getElementById('btn-browse');
+    const originalText = browseBtn.textContent;
+    browseBtn.textContent = '验证中...';
+    browseBtn.disabled = true;
+
     try {
         const result = await invoke('validate_bandizip_path', { path });
-        showValidationStatus(result.valid, result.message);
+        showValidationModal(result.valid, result.message);
     } catch (e) {
-        showValidationStatus(false, '验证失败: ' + e);
+        showValidationModal(false, '验证失败: ' + e);
+    } finally {
+        browseBtn.textContent = originalText;
+        browseBtn.disabled = false;
     }
 }
 
-function showValidationStatus(success, message) {
-    const statusEl = document.getElementById('validation-status');
-    statusEl.className = 'validation-status ' + (success ? 'success' : 'error');
-    
-    if (success) {
-        statusEl.innerHTML = `
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22,4 12,14.01 9,11.01"/>
-            </svg>
-            ${message}
-        `;
-    } else {
-        statusEl.innerHTML = `
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="15" y1="9" x2="9" y2="15"/>
-                <line x1="9" y1="9" x2="15" y2="15"/>
-            </svg>
-            ${message}
-        `;
+function showValidationModal(success, message) {
+    const existingModal = document.getElementById('validation-modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
     }
+
+    const iconSvg = success
+        ? `<svg class="validation-icon success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>`
+        : `<svg class="validation-icon error" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'validation-modal-overlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+        <div class="modal validation-modal">
+            <div class="validation-icon-wrapper">
+                ${iconSvg}
+            </div>
+            <div class="modal-header">
+                <h3>${success ? '验证成功' : '验证失败'}</h3>
+            </div>
+            <div class="modal-body">
+                <p>${message}</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="validation-modal-confirm">确定</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
+
+    document.getElementById('validation-modal-confirm').addEventListener('click', () => {
+        overlay.classList.remove('show');
+        setTimeout(() => {
+            overlay.remove();
+        }, 200);
+    });
+
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            overlay.classList.remove('show');
+            setTimeout(() => {
+                overlay.remove();
+            }, 200);
+        }
+    });
 }
 
 document.getElementById('btn-theme').addEventListener('click', toggleTheme);
