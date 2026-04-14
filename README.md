@@ -23,6 +23,8 @@
 - [Bandizip](https://www.bandisoft.com/bandizip/) (bz.exe)
 - Rust 1.70+（仅编译时需要）
 
+> ⚠️ **注意**：本工具仅为方便调用 Bandizip 的免费版。根据 Bandizip 官方政策，其免费版仅供个人使用，在商业环境或企业内部使用请自行向 Bandisoft 购买合适的许可证。
+
 ## 📥 安装
 
 ### 方式一：下载预编译版本
