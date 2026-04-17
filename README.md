@@ -9,17 +9,17 @@
 ## ✨ 功能特性
 
 - 🚀 **智能解压** - 自动尝试多个密码解压加密压缩包
-- 🔧 **双引擎支持** - 支持 7-Zip 和 Bandizip 两种解压引擎
 - 📊 **实时进度** - 现代化进度条动画，显示解压进度和速度
-- 🖱️ **右键集成** - Windows 右键菜单一键解压
 - 🧹 **自动清理** - 解压后自动删除临时文件和指定文件/文件夹
 - 📦 **嵌套解压** - 支持解压嵌套压缩包（如 zip 内包含 zip）
-- 🌐 **编码支持** - 可配置输出编码（GBK/UTF-8/Shift_JIS 等），解决中文乱码
-- 📂 **自定义输出** - 可配置解压输出目录，不指定则解压到压缩包所在目录
 - 🖥️ **跨平台** - 支持 Windows、macOS、Linux
+- 🔧 **双引擎支持** - 支持 7-Zip 和 Bandizip 两种解压引擎
+- 🖱️ **右键集成** - Windows 右键菜单一键解压
+- 🌐 **编码支持** - 可配置输出编码（GBK/UTF-8/Shift_JIS 等），解决中文乱码
 - ⚙️ **灵活配置** - 可配置的密码列表和解压选项
 - 🔄 **检查更新** - 内置检查更新功能（GUI 模式）
 - 🎨 **图形界面** - Tauri 驱动的现代化配置界面
+- 📂 **自定义输出** - 可配置解压输出目录，不指定则解压到压缩包所在目录
 
 ## 📋 系统要求
 
@@ -199,3 +199,12 @@ SmartUnZip/
 ## 📄 许可证
 
 本项目采用 [MIT](LICENSE) 许可证。
+
+## 🙏 致谢
+
+- [7-Zip](https://7-zip.org/) - 解压引擎
+- [Bandizip](https://www.bandisoft.com/bandizip/) - 解压引擎
+- [Tauri](https://tauri.app/) - 跨平台应用框架
+- [serde](https://serde.rs/) - 序列化框架
+- [colored](https://crates.io/crates/colored) - 终端彩色输出
+- [encoding_rs](https://crates.io/crates/encoding_rs) - 字符编码处理
