@@ -1,28 +1,37 @@
-# Rust build artifacts
-/target/
+# ================================
+# Rust 构建产物
+# ================================
+target/
 **/*.rs.bk
-
-# Cargo
 Cargo.lock
 
-# Tauri
-/src-tauri/gen/
-/src-tauri/target/
+# ================================
+# Tauri 自动生成 / 构建产物
+# ================================
+src-tauri/gen/
+src-tauri/target/
+src-tauri/binaries/
 
-# IDE
+# ================================
+# 构建输出 / 脚本
+# ================================
+dist/
+build.bat
+
+# ================================
+# IDE / 编辑器
+# ================================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+*.iml
 
-# OS
+# ================================
+# 操作系统
+# ================================
 .DS_Store
 Thumbs.db
 desktop.ini
-
-# Build output
-/dist/
-
-# Build scripts
-build.bat
+ehthumbs.db

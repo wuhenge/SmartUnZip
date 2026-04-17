@@ -36,42 +36,35 @@
 
 ## 📥 安装
 
-### 方式一：下载预编译版本
+### 下载预编译版本
 
 从 [Releases](https://github.com/wuhenge/SmartUnZip/releases) 页面下载最新版本。
 
 | 平台 | 文件 |
 |------|------|
-| Windows | `smartunzip_*_x64_zh-CN_setup.exe`（安装版）或 `_portable.zip`（绿色版） |
-| macOS (Apple Silicon) | `smartunzip_*_aarch64_macOS_*.dmg` |
-| macOS (Intel) | `smartunzip_*_x86_64_macOS_*.dmg` |
-| Linux | `smartunzip_*_x64_linux_*.deb` 或 `*.AppImage` |
+| Windows | `*_x64_zh-CN_setup.exe`（安装版）或 `*_portable.zip`（绿色版） |
+| macOS (Apple Silicon) | `*_aarch64_macOS_*.dmg` |
+| macOS (Intel) | `*_x86_64_macOS_*.dmg` |
+| Linux | `*_x64_linux_*.deb` 或 `*.AppImage` |
 
-### 方式二：从源码编译
+### 从源码编译
 
 ```bash
-# 克隆仓库
 git clone https://github.com/wuhenge/SmartUnZip.git
 cd SmartUnZip
 
-# 一键构建
-# Windows
-build.bat
-# macOS / Linux
-chmod +x build.sh && ./build.sh
+# 构建 CLI
+cargo build --release -p smartunzip-cli
 
-# 或手动构建
-# CLI 后端
-cargo build --release
-
-# GUI 前端
+# 构建 GUI（需先安装 tauri-cli）
+cargo install tauri-cli
 cd src-tauri
-cargo tauri build --no-bundle
+cargo tauri build
 ```
 
 构建产物：
 - CLI: `target/release/smartunzip-cli`（Windows 为 `.exe`）
-- GUI: `src-tauri/target/release/smartunzip`（Windows 为 `.exe`）
+- GUI: `src-tauri/target/release/bundle/` 下各平台安装包
 
 ## ⚙️ 配置
 
@@ -107,11 +100,11 @@ cargo tauri build --no-bundle
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `ExtractorType` | string | `"7zip"` | 解压引擎类型，可选 `"7zip"` 或 `"bandizip"` |
+| `ExtractorType` | string | `"7zip"` | 解压引擎，可选 `"7zip"` 或 `"bandizip"` |
 | `SevenZipPath` | string | - | Bandizip (bz.exe) 的路径 |
 | `SevenZipPath7z` | string | - | 7-Zip (7z/7z.exe/7zz) 的路径 |
-| `OutputEncoding` | string | Windows: `gbk` / 其他: `utf-8` | 输出编码，可选 `gbk`、`utf-8`、`shift_jis`、`euc-kr`、`big5` |
-| `OutputDirectory` | string | `""` | 自定义解压输出目录，为空则解压到压缩包所在目录，不存在自动创建 |
+| `OutputEncoding` | string | 见右 | 输出编码，Windows: `gbk`，其他: `utf-8`，还支持 `shift_jis`、`euc-kr`、`big5` |
+| `OutputDirectory` | string | `""` | 自定义解压输出目录，为空则解压到压缩包所在目录 |
 | `NestedArchiveDepth` | number | 0 | 嵌套压缩包最大解压层数（0=禁用） |
 | `AutoExit` | bool | false | 解压完成后自动退出 |
 | `ExtractNestedFolders` | bool | false | 展平嵌套文件夹 |
@@ -160,43 +153,42 @@ smartunzip-cli file1.zip file2.rar file3.7z
 
 ```
 SmartUnZip/
-├── src/                    # CLI 后端源码
-│   ├── main.rs            # 主程序入口
-│   ├── archive.rs         # 压缩包处理逻辑
-│   ├── config.rs          # 配置文件管理
-│   ├── files.rs           # 文件操作
-│   ├── registry.rs        # Windows 注册表操作
-│   ├── ui.rs              # 控制台 UI
-│   └── extractor/         # 解压引擎抽象
-│       ├── mod.rs          # Extractor trait 定义
-│       ├── sevenzip.rs     # 7-Zip 引擎实现
-│       └── bandizip.rs     # Bandizip 引擎实现
-├── src-tauri/             # GUI 前端（Tauri）
+├── cli/                    # CLI 后端（smartunzip-cli）
+│   └── src/
+│       ├── main.rs         # 主程序入口
+│       ├── archive.rs      # 压缩包处理逻辑
+│       ├── config.rs       # 配置文件管理
+│       ├── files.rs        # 文件操作
+│       ├── registry.rs     # Windows 注册表操作
+│       ├── ui.rs           # 控制台 UI
+│       └── extractor/      # 解压引擎抽象
+│           ├── mod.rs       # Extractor trait 定义
+│           ├── sevenzip.rs  # 7-Zip 引擎实现
+│           └── bandizip.rs  # Bandizip 引擎实现
+├── src-tauri/              # GUI 前端（smartunzip）
 │   ├── src/
-│   │   ├── main.rs        # Tauri 主程序
-│   │   ├── lib.rs         # 库入口
-│   │   ├── commands.rs    # IPC 命令
-│   │   ├── registry.rs    # Windows 注册表操作
-│   │   └── update.rs      # 更新检查
-│   ├── binaries/          # Sidecar 二进制文件
-│   ├── icons/             # 应用图标
-│   └── tauri.conf.json    # Tauri 配置
-├── ui/                    # 前端界面
-│   ├── index.html         # GUI 界面
-│   ├── styles.css         # 样式表
-│   └── main.js            # 前端逻辑
-├── .github/workflows/     # GitHub Actions 构建工作流
-├── build.bat              # Windows 构建脚本
-├── build.sh               # macOS/Linux 构建脚本
-├── Cargo.toml             # Rust 配置
-└── README.md              # 本文件
+│   │   ├── main.rs         # Tauri 主程序
+│   │   ├── lib.rs          # 库入口
+│   │   ├── commands.rs     # IPC 命令
+│   │   ├── registry.rs     # Windows 注册表操作
+│   │   └── update.rs       # 更新检查
+│   ├── capabilities/       # Tauri 权限配置
+│   ├── icons/              # 应用图标
+│   └── tauri.conf.json     # Tauri 配置
+├── ui/                     # 前端界面
+│   ├── index.html
+│   ├── styles.css
+│   └── main.js
+├── .cargo/config.toml      # Cargo 编译优化配置
+├── .github/workflows/      # GitHub Actions 构建工作流
+├── Cargo.toml              # Workspace 根配置
+└── README.md
 ```
 
 ## 🛠️ 技术栈
 
 - **后端**: Rust + Tauri 2
 - **前端**: HTML5 + CSS3 + JavaScript (Vanilla)
-- **UI 设计**: Linear 启发式设计系统
 - **解压引擎**: 7-Zip / Bandizip
 - **编码处理**: [encoding_rs](https://crates.io/crates/encoding_rs)
 
@@ -207,12 +199,3 @@ SmartUnZip/
 ## 📄 许可证
 
 本项目采用 [MIT](LICENSE) 许可证。
-
-## 🙏 致谢
-
-- [7-Zip](https://7-zip.org/) - 解压引擎
-- [Bandizip](https://www.bandisoft.com/bandizip/) - 解压引擎
-- [Tauri](https://tauri.app/) - 跨平台应用框架
-- [serde](https://serde.rs/) - 序列化框架
-- [colored](https://crates.io/crates/colored) - 终端彩色输出
-- [encoding_rs](https://crates.io/crates/encoding_rs) - 字符编码处理

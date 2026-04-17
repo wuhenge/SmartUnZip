@@ -1,20 +1,16 @@
 [package]
-name = "smartunzip"
+name = "smartunzip-cli"
 version.workspace = true
 edition.workspace = true
 
-[build-dependencies]
-tauri-build = { version = "2", features = [] }
-
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-shell = "2"
-tauri-plugin-dialog = "2"
 serde.workspace = true
 serde_json.workspace = true
+colored = "2"
+regex = "1"
+anyhow = "1"
 encoding_rs.workspace = true
 ureq.workspace = true
-open = "5"
 
 [target.'cfg(windows)'.dependencies]
 winreg.workspace = true

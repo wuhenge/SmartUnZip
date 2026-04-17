@@ -52,7 +52,7 @@ jobs:
           key: ${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build CLI
-        run: cargo build --release ${{ matrix.args }}
+        run: cargo build --release -p smartunzip-cli ${{ matrix.args }}
 
       - name: Copy CLI for Tauri sidecar
         shell: bash

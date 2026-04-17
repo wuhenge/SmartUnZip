@@ -1,0 +1,12 @@
+[build]
+# 共享编译依赖，减少磁盘占用
+incremental = true
+
+[profile.dev]
+# 开发模式也启用少量优化，减少 debug 产物体积
+opt-level = 0
+debug = 1
+
+[profile.dev.package."*"]
+# 依赖库在 dev 模式下也做优化，减少调试信息
+opt-level = 2
