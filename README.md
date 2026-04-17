@@ -9,10 +9,13 @@
 ## ✨ 功能特性
 
 - 🚀 **智能解压** - 自动尝试多个密码解压加密压缩包
+- 🔧 **双引擎支持** - 支持 7-Zip 和 Bandizip 两种解压引擎
 - 📊 **实时进度** - 现代化进度条动画，显示解压进度和速度
 - 🖱️ **右键集成** - Windows 右键菜单一键解压
 - 🧹 **自动清理** - 解压后自动删除临时文件和指定文件/文件夹
 - 📦 **嵌套解压** - 支持解压嵌套压缩包（如 zip 内包含 zip）
+- 🌐 **编码支持** - 可配置输出编码（GBK/UTF-8/Shift_JIS 等），解决中文乱码
+- 📂 **自定义输出** - 可配置解压输出目录，不指定则解压到压缩包所在目录
 - ⚙️ **灵活配置** - 可配置的密码列表和解压选项
 - 🔄 **检查更新** - 内置检查更新功能（GUI 模式）
 - 🎨 **图形界面** - Tauri 驱动的现代化配置界面
@@ -20,10 +23,10 @@
 ## 📋 系统要求
 
 - Windows 10/11
-- [Bandizip](https://www.bandisoft.com/bandizip/) (bz.exe)
+- [7-Zip](https://7-zip.org/) (7z.exe) 或 [Bandizip](https://www.bandisoft.com/bandizip/) (bz.exe)
 - Rust 1.70+（仅编译时需要）
 
-> ⚠️ **注意**：本工具仅为方便调用 Bandizip 的免费版。根据 Bandizip 官方政策，其免费版仅供个人使用，在商业环境或企业内部使用请自行向 Bandisoft 购买合适的许可证。
+> ⚠️ **注意**：本工具调用 7-Zip 或 Bandizip 的命令行接口。Bandizip 免费版仅供个人使用，在商业环境或企业内部使用请自行向 Bandisoft 购买合适的许可证。
 
 ## 📥 安装
 
@@ -47,7 +50,7 @@ cargo build --release
 
 # GUI 前端
 cd src-tauri
-cargo tauri build
+cargo tauri build --no-bundle
 ```
 
 构建产物：
@@ -56,14 +59,18 @@ cargo tauri build
 
 ## ⚙️ 配置
 
-首次运行会自动生成 `appsettings.json` 配置文件，也可通过 GUI 工具进行可视化配置。
+配置文件为可执行文件同目录下的 `appsettings.json`，可通过 GUI 工具进行可视化配置。
 
 ### 配置文件示例
 
 ```json
 {
   "AppSettings": {
+    "ExtractorType": "7zip",
     "SevenZipPath": "C:\\Program Files\\Bandizip\\bz.exe",
+    "SevenZipPath7z": "C:\\Program Files\\7-Zip\\7z.exe",
+    "OutputEncoding": "gbk",
+    "OutputDirectory": "",
     "NestedArchiveDepth": 0,
     "AutoExit": false,
     "ExtractNestedFolders": false,
@@ -84,7 +91,11 @@ cargo tauri build
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
+| `ExtractorType` | string | `"7zip"` | 解压引擎类型，可选 `"7zip"` 或 `"bandizip"` |
 | `SevenZipPath` | string | - | Bandizip (bz.exe) 的路径 |
+| `SevenZipPath7z` | string | - | 7-Zip (7z.exe) 的路径 |
+| `OutputEncoding` | string | `"gbk"` | 输出编码，可选 `gbk`、`utf-8`、`shift_jis`、`euc-kr`、`big5` |
+| `OutputDirectory` | string | `""` | 自定义解压输出目录，为空则解压到压缩包所在目录，不存在自动创建 |
 | `NestedArchiveDepth` | number | 0 | 嵌套压缩包最大解压层数（0=禁用） |
 | `AutoExit` | bool | false | 解压完成后自动退出 |
 | `ExtractNestedFolders` | bool | false | 展平嵌套文件夹 |
@@ -110,32 +121,23 @@ smartunzip-cli.exe archive.zip
 smartunzip-cli.exe file1.zip file2.rar file3.7z
 ```
 
+### 无参数运行
+
+直接运行 `smartunzip-cli.exe`（不带参数）将验证配置文件是否有效：
+
+- 配置有效时显示解压引擎和路径信息
+- 配置无效时提示具体原因（未配置路径、文件不存在等）
+- 配置文件不存在时提示未找到配置文件
+
 ### GUI 配置工具
 
 运行 `smartunzip.exe` 打开图形界面：
 
 - 🌓 深色/浅色主题切换
-- ✅ 实时验证 Bandizip 路径
+- ✅ 实时验证解压引擎路径
 - 📝 可视化编辑密码列表和删除规则
+- 📂 可选择自定义解压输出目录
 - 💾 自动检测配置变更
-
-### 交互模式
-
-直接运行 `smartunzip-cli.exe`（不带参数）进入设置界面：
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  SmartUnZip  设置
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ● 右键菜单: 未安装
-  ● Bandizip: C:\Program Files\Bandizip\bz.exe
-
-  1. 添加右键菜单
-  2. 验证 Bandizip
-  0. 退出
-
-  请选择:
-```
 
 ## 📁 项目结构
 
@@ -146,13 +148,17 @@ SmartUnZip/
 │   ├── archive.rs         # 压缩包处理逻辑
 │   ├── config.rs          # 配置文件管理
 │   ├── files.rs           # 文件操作
-│   ├── registry.rs        # Windows 注册表操作
-│   └── ui.rs              # 控制台 UI
+│   ├── ui.rs              # 控制台 UI
+│   └── extractor/         # 解压引擎抽象
+│       ├── mod.rs          # Extractor trait 定义
+│       ├── sevenzip.rs     # 7-Zip 引擎实现
+│       └── bandizip.rs     # Bandizip 引擎实现
 ├── src-tauri/             # GUI 前端（Tauri）
 │   ├── src/
 │   │   ├── main.rs        # Tauri 主程序
 │   │   ├── lib.rs         # 库入口
 │   │   ├── commands.rs    # IPC 命令
+│   │   ├── registry.rs    # Windows 注册表操作
 │   │   └── update.rs      # 更新检查
 │   ├── binaries/          # Sidecar 二进制文件
 │   ├── icons/             # 应用图标
@@ -171,7 +177,8 @@ SmartUnZip/
 - **后端**: Rust + Tauri 2
 - **前端**: HTML5 + CSS3 + JavaScript (Vanilla)
 - **UI 设计**: Linear 启发式设计系统
-- **解压引擎**: Bandizip (bz.exe)
+- **解压引擎**: 7-Zip / Bandizip
+- **编码处理**: [encoding_rs](https://crates.io/crates/encoding_rs)
 
 ## 🤝 贡献
 
@@ -183,7 +190,9 @@ SmartUnZip/
 
 ## 🙏 致谢
 
+- [7-Zip](https://7-zip.org/) - 解压引擎
 - [Bandizip](https://www.bandisoft.com/bandizip/) - 解压引擎
 - [Tauri](https://tauri.app/) - 跨平台应用框架
 - [serde](https://serde.rs/) - 序列化框架
 - [colored](https://crates.io/crates/colored) - 终端彩色输出
+- [encoding_rs](https://crates.io/crates/encoding_rs) - 字符编码处理
