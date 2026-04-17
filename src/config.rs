@@ -3,8 +3,11 @@ use std::path::PathBuf;
 
 /// 默认解压引擎类型，修改此值即可切换默认引擎
 const DEFAULT_EXTRACTOR_TYPE: &str = "7zip";
-/// 默认输出编码
+/// 默认输出编码（Windows 控制台为 GBK，其他平台为 UTF-8）
+#[cfg(windows)]
 const DEFAULT_OUTPUT_ENCODING: &str = "gbk";
+#[cfg(not(windows))]
+const DEFAULT_OUTPUT_ENCODING: &str = "utf-8";
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct AppSettings {

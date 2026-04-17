@@ -3,7 +3,7 @@
 智能解压工具 - 自动尝试密码解压加密压缩包
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Platform](https://img.shields.io/badge/platform-Windows-blue.svg)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)
 
 ## ✨ 功能特性
@@ -16,23 +16,36 @@
 - 📦 **嵌套解压** - 支持解压嵌套压缩包（如 zip 内包含 zip）
 - 🌐 **编码支持** - 可配置输出编码（GBK/UTF-8/Shift_JIS 等），解决中文乱码
 - 📂 **自定义输出** - 可配置解压输出目录，不指定则解压到压缩包所在目录
+- 🖥️ **跨平台** - 支持 Windows、macOS、Linux
 - ⚙️ **灵活配置** - 可配置的密码列表和解压选项
 - 🔄 **检查更新** - 内置检查更新功能（GUI 模式）
 - 🎨 **图形界面** - Tauri 驱动的现代化配置界面
 
 ## 📋 系统要求
 
-- Windows 10/11
-- [7-Zip](https://7-zip.org/) (7z.exe) 或 [Bandizip](https://www.bandisoft.com/bandizip/) (bz.exe)
+| 平台 | 要求 |
+|------|------|
+| Windows | Windows 10/11 |
+| macOS | macOS 10.15+ |
+| Linux | Ubuntu 22.04+ 或其他主流发行版 |
+
+- [7-Zip](https://7-zip.org/) (7z/7z.exe) 或 [Bandizip](https://www.bandisoft.com/bandizip/) (bz.exe)（仅 Windows）
 - Rust 1.70+（仅编译时需要）
 
-> ⚠️ **注意**：本工具调用 7-Zip 或 Bandizip 的命令行接口。Bandizip 免费版仅供个人使用，在商业环境或企业内部使用请自行向 Bandisoft 购买合适的许可证。
+> ⚠️ **注意**：本工具调用 7-Zip 或 Bandizip 的命令行接口。Bandizip 免费版仅供个人使用，在商业环境或企业内部使用请自行向 Bandisoft 购买合适的许可证。macOS/Linux 用户推荐安装 [7-Zip](https://7-zip.org/)（Linux 下为 `p7zip` 或 `7zz`）。
 
 ## 📥 安装
 
 ### 方式一：下载预编译版本
 
 从 [Releases](https://github.com/wuhenge/SmartUnZip/releases) 页面下载最新版本。
+
+| 平台 | 文件 |
+|------|------|
+| Windows | `smartunzip_*_x64_zh-CN_setup.exe`（安装版）或 `_portable.zip`（便携版） |
+| macOS (Apple Silicon) | `smartunzip_*_aarch64_macOS_*.dmg` |
+| macOS (Intel) | `smartunzip_*_x86_64_macOS_*.dmg` |
+| Linux | `smartunzip_*_x64_linux_*.deb` 或 `*.AppImage` |
 
 ### 方式二：从源码编译
 
@@ -41,8 +54,11 @@
 git clone https://github.com/wuhenge/SmartUnZip.git
 cd SmartUnZip
 
-# 一键构建（推荐）
+# 一键构建
+# Windows
 build.bat
+# macOS / Linux
+chmod +x build.sh && ./build.sh
 
 # 或手动构建
 # CLI 后端
@@ -54,8 +70,8 @@ cargo tauri build --no-bundle
 ```
 
 构建产物：
-- CLI: `target/release/smartunzip-cli.exe`
-- GUI: `src-tauri/target/release/smartunzip.exe`
+- CLI: `target/release/smartunzip-cli`（Windows 为 `.exe`）
+- GUI: `src-tauri/target/release/smartunzip`（Windows 为 `.exe`）
 
 ## ⚙️ 配置
 
@@ -93,8 +109,8 @@ cargo tauri build --no-bundle
 |------|------|--------|------|
 | `ExtractorType` | string | `"7zip"` | 解压引擎类型，可选 `"7zip"` 或 `"bandizip"` |
 | `SevenZipPath` | string | - | Bandizip (bz.exe) 的路径 |
-| `SevenZipPath7z` | string | - | 7-Zip (7z.exe) 的路径 |
-| `OutputEncoding` | string | `"gbk"` | 输出编码，可选 `gbk`、`utf-8`、`shift_jis`、`euc-kr`、`big5` |
+| `SevenZipPath7z` | string | - | 7-Zip (7z/7z.exe/7zz) 的路径 |
+| `OutputEncoding` | string | Windows: `gbk` / 其他: `utf-8` | 输出编码，可选 `gbk`、`utf-8`、`shift_jis`、`euc-kr`、`big5` |
 | `OutputDirectory` | string | `""` | 自定义解压输出目录，为空则解压到压缩包所在目录，不存在自动创建 |
 | `NestedArchiveDepth` | number | 0 | 嵌套压缩包最大解压层数（0=禁用） |
 | `AutoExit` | bool | false | 解压完成后自动退出 |
@@ -115,15 +131,15 @@ cargo tauri build --no-bundle
 
 ```bash
 # 解压单个文件
-smartunzip-cli.exe archive.zip
+smartunzip-cli archive.zip
 
 # 解压多个文件
-smartunzip-cli.exe file1.zip file2.rar file3.7z
+smartunzip-cli file1.zip file2.rar file3.7z
 ```
 
 ### 无参数运行
 
-直接运行 `smartunzip-cli.exe`（不带参数）将验证配置文件是否有效：
+直接运行 `smartunzip-cli`（不带参数）将验证配置文件是否有效：
 
 - 配置有效时显示解压引擎和路径信息
 - 配置无效时提示具体原因（未配置路径、文件不存在等）
@@ -131,13 +147,14 @@ smartunzip-cli.exe file1.zip file2.rar file3.7z
 
 ### GUI 配置工具
 
-运行 `smartunzip.exe` 打开图形界面：
+运行 `smartunzip` 打开图形界面：
 
 - 🌓 深色/浅色主题切换
 - ✅ 实时验证解压引擎路径
 - 📝 可视化编辑密码列表和删除规则
 - 📂 可选择自定义解压输出目录
 - 💾 自动检测配置变更
+- 🖱️ Windows 右键菜单集成
 
 ## 📁 项目结构
 
@@ -148,6 +165,7 @@ SmartUnZip/
 │   ├── archive.rs         # 压缩包处理逻辑
 │   ├── config.rs          # 配置文件管理
 │   ├── files.rs           # 文件操作
+│   ├── registry.rs        # Windows 注册表操作
 │   ├── ui.rs              # 控制台 UI
 │   └── extractor/         # 解压引擎抽象
 │       ├── mod.rs          # Extractor trait 定义
@@ -167,7 +185,9 @@ SmartUnZip/
 │   ├── index.html         # GUI 界面
 │   ├── styles.css         # 样式表
 │   └── main.js            # 前端逻辑
-├── build.bat              # 一键构建脚本
+├── .github/workflows/     # GitHub Actions 构建工作流
+├── build.bat              # Windows 构建脚本
+├── build.sh               # macOS/Linux 构建脚本
 ├── Cargo.toml             # Rust 配置
 └── README.md              # 本文件
 ```

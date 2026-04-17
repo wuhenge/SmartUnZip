@@ -1,4 +1,6 @@
+#[cfg(windows)]
 use winreg::enums::*;
+#[cfg(windows)]
 use winreg::RegKey;
 
 const REG_KEY_PATH: &str = r"Software\Classes\*\shell\SmartUnZip";
