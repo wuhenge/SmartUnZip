@@ -22,7 +22,7 @@ jobs:
             target: aarch64-apple-darwin
             cli_ext: ''
             args: '--target aarch64-apple-darwin'
-          - platform: macos-13
+          - platform: macos-latest
             target: x86_64-apple-darwin
             cli_ext: ''
             args: '--target x86_64-apple-darwin'
@@ -127,40 +127,6 @@ jobs:
           Copy-Item "target/release/smartunzip-cli.exe" "$tempDir/"
           Compress-Archive -Path "$tempDir/*" -DestinationPath "src-tauri/target/release/$zipName"
 
-      - name: Create portable package - macOS
-        if: startsWith(matrix.platform, 'macos')
-        shell: bash
-        run: |
-          tag="${{ github.ref_name }}"
-          version="${tag#v}"
-          arch=$(echo "${{ matrix.target }}" | cut -d'-' -f1)
-          zipName="smartunzip_${version}_${arch}_macOS_portable.tar.gz"
-          tempDir="src-tauri/target/release/portable"
-          mkdir -p "$tempDir"
-          if [ -f "src-tauri/target/${{ matrix.target }}/release/smartunzip" ]; then
-            cp "src-tauri/target/${{ matrix.target }}/release/smartunzip" "$tempDir/"
-          else
-            cp "src-tauri/target/release/smartunzip" "$tempDir/"
-          fi
-          if [ -f "target/${{ matrix.target }}/release/smartunzip-cli" ]; then
-            cp "target/${{ matrix.target }}/release/smartunzip-cli" "$tempDir/"
-          else
-            cp "target/release/smartunzip-cli" "$tempDir/"
-          fi
-          tar -czf "src-tauri/target/release/$zipName" -C "$tempDir" .
-
-      - name: Create portable package - Linux
-        if: matrix.platform == 'ubuntu-22.04'
-        shell: bash
-        run: |
-          tag="${{ github.ref_name }}"
-          version="${tag#v}"
-          zipName="smartunzip_${version}_x64_linux_portable.tar.gz"
-          tempDir="src-tauri/target/release/portable"
-          mkdir -p "$tempDir"
-          cp "src-tauri/target/release/smartunzip" "$tempDir/"
-          cp "target/release/smartunzip-cli" "$tempDir/"
-          tar -czf "src-tauri/target/release/$zipName" -C "$tempDir" .
 
       - name: Upload portable artifact - Windows
         if: matrix.platform == 'windows-latest'
@@ -170,21 +136,6 @@ jobs:
           path: src-tauri/target/release/*.zip
           if-no-files-found: warn
 
-      - name: Upload portable artifact - macOS
-        if: startsWith(matrix.platform, 'macos')
-        uses: actions/upload-artifact@v4
-        with:
-          name: smartunzip-macos-${{ matrix.target }}-portable
-          path: src-tauri/target/release/*.tar.gz
-          if-no-files-found: warn
-
-      - name: Upload portable artifact - Linux
-        if: matrix.platform == 'ubuntu-22.04'
-        uses: actions/upload-artifact@v4
-        with:
-          name: smartunzip-linux-portable
-          path: src-tauri/target/release/*.tar.gz
-          if-no-files-found: warn
 
   release:
     runs-on: ubuntu-latest
@@ -199,7 +150,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p ./release-files
-          find ./artifacts -type f \( -name "*.msi" -o -name "*setup.exe" -o -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.zip" -o -name "*.tar.gz" \) -exec cp {} ./release-files/ \;
+          find ./artifacts -type f \( -name "*.msi" -o -name "*setup.exe" -o -name "*.dmg" -o -name "*.deb" -o -name "*.AppImage" -o -name "*.zip" \) -exec cp {} ./release-files/ \;
 
       - name: Rename Windows files to Chinese
         shell: bash

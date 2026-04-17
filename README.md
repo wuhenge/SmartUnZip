@@ -42,7 +42,7 @@
 
 | 平台 | 文件 |
 |------|------|
-| Windows | `smartunzip_*_x64_zh-CN_setup.exe`（安装版）或 `_portable.zip`（便携版） |
+| Windows | `smartunzip_*_x64_zh-CN_setup.exe`（安装版）或 `_portable.zip`（绿色版） |
 | macOS (Apple Silicon) | `smartunzip_*_aarch64_macOS_*.dmg` |
 | macOS (Intel) | `smartunzip_*_x86_64_macOS_*.dmg` |
 | Linux | `smartunzip_*_x64_linux_*.deb` 或 `*.AppImage` |
