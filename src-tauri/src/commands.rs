@@ -3,10 +3,23 @@ use std::path::PathBuf;
 
 use crate::update;
 
+/// 默认解压引擎类型，修改此值即可切换默认引擎
+const DEFAULT_EXTRACTOR_TYPE: &str = "7zip";
+/// 默认输出编码
+const DEFAULT_OUTPUT_ENCODING: &str = "gbk";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
-    #[serde(rename = "SevenZipPath")]
+    #[serde(rename = "ExtractorType", default = "default_extractor_type")]
+    pub extractor_type: String,
+    #[serde(rename = "OutputEncoding", default = "default_output_encoding")]
+    pub output_encoding: String,
+    #[serde(rename = "SevenZipPath", default)]
     pub seven_zip_path: String,
+    #[serde(rename = "SevenZipPath7z", default)]
+    pub seven_zip_path_7z: String,
+    #[serde(rename = "OutputDirectory", default)]
+    pub output_directory: String,
     #[serde(rename = "AutoExit")]
     pub auto_exit: bool,
     #[serde(rename = "ExtractNestedFolders")]
@@ -36,7 +49,11 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            seven_zip_path: r"C:\Program Files\Bandizip\bz.exe".to_string(),
+            extractor_type: "7zip".to_string(),
+            output_encoding: DEFAULT_OUTPUT_ENCODING.to_string(),
+            seven_zip_path: default_bandizip_path(),
+            seven_zip_path_7z: default_7zip_path(),
+            output_directory: String::new(),
             auto_exit: false,
             extract_nested_folders: false,
             debug_mode: false,
@@ -51,6 +68,39 @@ impl Default for AppSettings {
             delete_folders: vec!["说明".to_string()],
         }
     }
+}
+
+fn default_extractor_type() -> String {
+    "7zip".to_string()
+}
+
+fn default_output_encoding() -> String {
+    DEFAULT_OUTPUT_ENCODING.to_string()
+}
+
+#[cfg(windows)]
+fn default_bandizip_path() -> String {
+    r"C:\Program Files\Bandizip\bz.exe".to_string()
+}
+
+#[cfg(not(windows))]
+fn default_bandizip_path() -> String {
+    String::new()
+}
+
+#[cfg(windows)]
+fn default_7zip_path() -> String {
+    r"C:\Program Files\7-Zip\7z.exe".to_string()
+}
+
+#[cfg(target_os = "macos")]
+fn default_7zip_path() -> String {
+    String::new()
+}
+
+#[cfg(target_os = "linux")]
+fn default_7zip_path() -> String {
+    String::new()
 }
 
 #[derive(Serialize, Deserialize)]
@@ -106,7 +156,14 @@ pub fn load_config() -> Result<AppSettings, String> {
     let config: ConfigFile = serde_json::from_str(&content)
         .map_err(|e| format!("解析配置文件失败: {}", e))?;
     
-    Ok(config.app_settings)
+    let mut settings = config.app_settings;
+    
+    // 兼容旧配置：将无效的 "auto" 修正为 "bandizip"
+    if !matches!(settings.extractor_type.as_str(), "bandizip" | "7zip") {
+        settings.extractor_type = DEFAULT_EXTRACTOR_TYPE.to_string();
+    }
+    
+    Ok(settings)
 }
 
 #[tauri::command]
@@ -129,25 +186,7 @@ pub struct ValidationResult {
 }
 
 #[tauri::command]
-pub fn validate_bandizip_path(path: String) -> ValidationResult {
-    let file_name = std::path::Path::new(&path)
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_lowercase();
-
-    if file_name != "bz.exe" {
-        return ValidationResult {
-            valid: false,
-            message: format!("应选择 bz.exe 而非 {}", 
-                std::path::Path::new(&path)
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-            ),
-        };
-    }
-
+pub fn validate_extractor_path(path: String, extractor_type: String) -> ValidationResult {
     if !std::path::Path::new(&path).exists() {
         return ValidationResult {
             valid: false,
@@ -155,7 +194,31 @@ pub fn validate_bandizip_path(path: String) -> ValidationResult {
         };
     }
 
+    let file_name = std::path::Path::new(&path)
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_lowercase();
+
+    let expected = match extractor_type.as_str() {
+        "bandizip" => vec!["bz.exe", "bz"],
+        "7zip" => vec!["7z.exe", "7z", "7zz"],
+        _ => vec![],
+    };
+
+    if !expected.contains(&file_name.as_str()) {
+        return ValidationResult {
+            valid: false,
+            message: format!(
+                "应选择 {} 的可执行文件（{}）",
+                extractor_type,
+                expected.join(" / ")
+            ),
+        };
+    }
+
     match std::process::Command::new(&path)
+        .arg("--help")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -173,6 +236,11 @@ pub fn validate_bandizip_path(path: String) -> ValidationResult {
             message: format!("验证失败: {}", e),
         },
     }
+}
+
+#[tauri::command]
+pub fn get_default_extractor_type() -> String {
+    DEFAULT_EXTRACTOR_TYPE.to_string()
 }
 
 #[tauri::command]

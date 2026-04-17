@@ -1,7 +1,7 @@
 mod archive;
 mod config;
+mod extractor;
 mod files;
-mod registry;
 mod ui;
 
 use std::io::Write;
@@ -11,77 +11,81 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let ui = Arc::new(ui::ConsoleUi::new("SmartUnZip"));
 
-    // 启动时加载配置（首次运行自动生成配置文件）
+    // 启动时加载配置
     let settings = match config::load() {
         Ok(s) => s,
         Err(e) => {
             ui.error(&format!("{e}"));
+            wait_key();
+            return;
+        }
+    };
+
+    // 创建解压引擎
+    let extractor = match config::create_extractor_from_config(&settings) {
+        Some(e) => e,
+        None => {
+            ui.error("未找到可用的解压工具，请在配置文件中指定引擎类型和路径");
+            wait_key();
             return;
         }
     };
 
     if args.is_empty() {
-        ui.header("设置");
-
-        let registered = registry::is_registered();
-        let status = if registered { "已安装" } else { "未安装" };
-        let toggle_label = if registered {
-            "移除右键菜单"
+        // 验证配置是否有效
+        let exe_path = extractor.exe_path();
+        if !exe_path.is_empty() && std::path::Path::new(exe_path).exists() && extractor.validate(exe_path) {
+            ui.success(&format!("配置有效: {} ({})", extractor.name(), exe_path));
+        } else if exe_path.is_empty() {
+            ui.error("配置无效: 未配置解压工具路径");
+        } else if !std::path::Path::new(exe_path).exists() {
+            ui.error(&format!("配置无效: 文件不存在 {}", exe_path));
         } else {
-            "添加右键菜单"
-        };
-        ui.info(&format!("右键菜单: {status}"));
-        ui.info(&format!("Bandizip: {}", settings.seven_zip_path));
-        eprintln!();
-        eprintln!("  1. {toggle_label}");
-        eprintln!("  2. 验证 Bandizip");
-        eprintln!("  0. 退出");
-        eprintln!();
-        eprint!("  请选择: ");
-        std::io::stderr().flush().ok();
-
-        let mut input = String::new();
-        let _ = std::io::stdin().read_line(&mut input);
-        let choice = input.trim();
-
-        match choice {
-            "1" => {
-                if registered {
-                    registry::remove(&ui);
-                } else {
-                    registry::add(&ui);
-                }
-            }
-            "2" => verify_bandizip(&settings.seven_zip_path, &ui),
-            _ => {}
+            ui.error(&format!("配置无效: 文件名不匹配 {} 的可执行文件", extractor.name()));
         }
 
-        eprintln!();
         wait_key();
         return;
     }
 
-    if !std::path::Path::new(&settings.seven_zip_path).exists() {
-        ui.error(&format!("未找到 Bandizip: {}", settings.seven_zip_path));
+    if !std::path::Path::new(extractor.exe_path()).exists() {
+        ui.error(&format!(
+            "未找到 {}: {}",
+            extractor.name(),
+            extractor.exe_path()
+        ));
+        if !settings.auto_exit {
+            wait_key();
+        }
         return;
     }
 
     if settings.debug_mode {
-        ui.print_config(&settings);
+        ui.print_config(&settings, extractor.as_ref());
     }
 
     for zip_file in &args {
-        let output_folder = std::path::Path::new(zip_file)
-            .parent()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_default();
+        let output_folder = if settings.output_directory.is_empty() {
+            std::path::Path::new(zip_file)
+                .parent()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_default()
+        } else {
+            let dir = &settings.output_directory;
+            if !std::path::Path::new(dir).exists() {
+                if let Err(e) = std::fs::create_dir_all(dir) {
+                    ui.warn(&format!("创建输出目录失败: {}", e));
+                }
+            }
+            dir.clone()
+        };
         let file_name = std::path::Path::new(zip_file)
             .file_name()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
 
-        ui.header(&format!("解压 {file_name}"));
+        ui.header(&format!("解压 {file_name} [{}]", extractor.name()));
 
         let mut extracted = false;
         let start_time = std::time::Instant::now();
@@ -99,8 +103,7 @@ fn main() {
             let _ = std::fs::create_dir_all(&temp_folder);
 
             let debug_cmd = if settings.debug_mode {
-                let pwd_flag = format!("-p:{pwd}");
-                Some(format!("l -list:v -y {pwd_flag} {zip_file}"))
+                Some(format!("{} list -y {}", extractor.exe_path(), zip_file))
             } else {
                 None
             };
@@ -111,14 +114,15 @@ fn main() {
                 debug_cmd.as_deref(),
             );
 
-            match archive::try_extract(
+            match archive::try_extract_with_extractor(
                 zip_file,
                 &temp_folder,
                 pwd,
-                &settings.seven_zip_path,
+                extractor.as_ref(),
                 start_time,
                 &ui,
                 settings.debug_mode,
+                &settings.output_encoding,
             ) {
                 Ok(true) => {
                     let extracted_path = files::process_temp_folder(
@@ -127,7 +131,7 @@ fn main() {
                         zip_file,
                         1,
                         &settings.passwords,
-                        &settings.seven_zip_path,
+                        extractor.as_ref(),
                         &settings,
                         &ui,
                     );
@@ -156,7 +160,7 @@ fn main() {
                         }
                     }
                     std::thread::sleep(std::time::Duration::from_millis(300));
-                    break; // 修复原 C# 中的 bug：原为 return，跳过后续文件
+                    break;
                 }
                 _ => {
                     files::try_delete_directory(&temp_folder);
@@ -175,62 +179,42 @@ fn main() {
 }
 
 fn wait_key() {
+    eprintln!();
     eprint!("  按回车键退出...");
     std::io::stderr().flush().ok();
     let _ = std::io::stdin().read_line(&mut String::new());
 }
 
-fn verify_bandizip(path: &str, ui: &Arc<ui::ConsoleUi>) {
-    eprintln!();
-
-    let file_name = std::path::Path::new(path)
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_lowercase();
-
-    if file_name != "bz.exe" {
-        ui.error(&format!(
-            "应使用 bz.exe 而非 {}",
-            std::path::Path::new(path)
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-        ));
-        return;
-    }
-
-    if !std::path::Path::new(path).exists() {
-        ui.error("文件不存在");
-        return;
-    }
-
-    match std::process::Command::new(path)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
+fn open_folder(path: &str) -> anyhow::Result<()> {
+    #[cfg(windows)]
     {
-        Ok(mut child) => {
-            let _ = child.wait();
-            ui.success("验证成功");
-        }
-        Err(e) => {
-            ui.error(&format!("验证失败: {e}"));
-        }
+        std::process::Command::new("explorer")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| anyhow::anyhow!("无法打开文件夹: {}", e))
     }
-}
 
-#[cfg(windows)]
-fn open_folder(path: &str) -> anyhow::Result<()> {
-    std::process::Command::new("explorer")
-        .arg(path)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| anyhow::anyhow!("无法打开文件夹: {}", e))
-}
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| anyhow::anyhow!("无法打开文件夹: {}", e))
+    }
 
-#[cfg(not(windows))]
-fn open_folder(path: &str) -> anyhow::Result<()> {
-    Err(anyhow::anyhow!("此功能仅在 Windows 上可用"))
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| anyhow::anyhow!("无法打开文件夹: {}", e))
+    }
+
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+    {
+        Err(anyhow::anyhow!("此平台不支持自动打开文件夹"))
+    }
 }

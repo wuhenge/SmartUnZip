@@ -1,10 +1,13 @@
 use colored::Colorize;
+use encoding_rs::Encoding;
 use regex::Regex;
 use std::io::Read;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
+
+use crate::extractor::Extractor;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ArchiveMetrics {
@@ -20,7 +23,7 @@ pub struct ProcessOutput {
     pub stderr: String,
 }
 
-pub fn run_capture(exe: &str, args: &[&str]) -> anyhow::Result<ProcessOutput> {
+pub fn run_capture(exe: &str, args: &[&str], encoding: &str) -> anyhow::Result<ProcessOutput> {
     let mut cmd = Command::new(exe);
     cmd.args(args)
         .stdin(Stdio::null())
@@ -54,13 +57,96 @@ pub fn run_capture(exe: &str, args: &[&str]) -> anyhow::Result<ProcessOutput> {
     let stdout_bytes = t1.join().unwrap_or_default();
     let stderr_bytes = t2.join().unwrap_or_default();
 
+    let enc = parse_encoding(encoding);
+
     Ok(ProcessOutput {
         exit_code: status.code().unwrap_or(-1),
-        stdout: String::from_utf8_lossy(&stdout_bytes).to_string(),
-        stderr: String::from_utf8_lossy(&stderr_bytes).to_string(),
+        stdout: decode_bytes(&stdout_bytes, enc),
+        stderr: decode_bytes(&stderr_bytes, enc),
     })
 }
 
+/// 根据编码名称解析 encoding_rs Encoding
+fn parse_encoding(name: &str) -> Option<&'static Encoding> {
+    match name.to_lowercase().as_str() {
+        "utf-8" | "utf8" => Some(encoding_rs::UTF_8),
+        "gbk" | "gb2312" | "gb18030" => Some(encoding_rs::GBK),
+        "shift_jis" | "shift-jis" | "sjis" => Some(encoding_rs::SHIFT_JIS),
+        "euc-kr" | "euckr" => Some(encoding_rs::EUC_KR),
+        "big5" => Some(encoding_rs::BIG5),
+        _ => None,
+    }
+}
+
+/// 用指定编码解码字节流，回退到 UTF-8 lossy
+fn decode_bytes(bytes: &[u8], encoding: Option<&'static Encoding>) -> String {
+    if let Some(enc) = encoding {
+        let (cow, _encoding_used, _had_errors) = enc.decode(bytes);
+        cow.into_owned()
+    } else {
+        String::from_utf8_lossy(bytes).to_string()
+    }
+}
+
+/// 使用 Extractor trait 尝试解压（新接口）
+pub fn try_extract_with_extractor(
+    zip_file: &str,
+    temp_folder: &str,
+    password: &str,
+    extractor: &dyn Extractor,
+    start_time: Instant,
+    ui: &Arc<crate::ui::ConsoleUi>,
+    debug: bool,
+    encoding: &str,
+) -> anyhow::Result<bool> {
+    // 1. 列出文件
+    let list_output = extractor.list(zip_file, password, encoding)?;
+
+    if list_output.total_files == 0 && list_output.total_bytes == 0 {
+        // 可能密码错误或文件损坏
+        return Ok(false);
+    }
+
+    let metrics = ArchiveMetrics {
+        total_bytes: list_output.total_bytes,
+        total_files: list_output.total_files,
+    };
+
+    if debug {
+        ui.clear_inline();
+        eprintln!();
+        ui.debug_section("压缩包内容");
+        print_simple_file_list_generic(&list_output.raw_stdout, ui, extractor.name());
+    }
+
+    if metrics.total_bytes > 0 {
+        ui.info(&format!(
+            "共 {} 个文件 ({})",
+            metrics.total_files,
+            crate::ui::format_bytes(metrics.total_bytes)
+        ));
+    }
+
+    // 2. 解压
+    if metrics.total_bytes > 0 {
+        run_extract_with_progress_extractor(
+            extractor,
+            zip_file,
+            temp_folder,
+            password,
+            metrics,
+            start_time,
+            ui,
+        )
+    } else {
+        ui.warn("无法获取文件大小，进度不可用");
+        extractor.extract(zip_file, temp_folder, password, encoding)?;
+        Ok(true)
+    }
+}
+
+/// 兼容旧接口：直接用路径调用 Bandizip
+#[allow(dead_code)]
 pub fn try_extract(
     zip_file: &str,
     temp_folder: &str,
@@ -69,52 +155,10 @@ pub fn try_extract(
     start_time: Instant,
     ui: &Arc<crate::ui::ConsoleUi>,
     debug: bool,
+    encoding: &str,
 ) -> anyhow::Result<bool> {
-    let pwd_flag = format!("-p:{password}");
-    let list_args = vec!["l", "-list:v", "-y", &pwd_flag, zip_file];
-
-    let list_result = run_capture(seven_zip_path, &list_args)?;
-
-    if list_result.exit_code != 0 {
-        return Ok(false);
-    }
-
-    if debug {
-        let simple_list_args = vec!["l", "-list:s", "-y", &pwd_flag, zip_file];
-        if let Ok(simple_result) = run_capture(seven_zip_path, &simple_list_args) {
-            ui.clear_inline();
-            eprintln!();
-            ui.debug_section("压缩包内容");
-            print_simple_file_list(&simple_result.stdout, ui);
-        }
-    }
-
-    if let Some(metrics) = parse_listing_metrics(&list_result.stdout) {
-        ui.info(&format!(
-            "共 {} 个文件 ({})",
-            metrics.total_files,
-            crate::ui::format_bytes(metrics.total_bytes)
-        ));
-
-        let out_flag = format!("-o:{temp_folder}");
-        let extract_args = vec!["x", "-y", &pwd_flag, &out_flag, zip_file];
-
-        run_extract_with_progress(
-            seven_zip_path,
-            &extract_args,
-            temp_folder,
-            metrics,
-            start_time,
-            ui,
-        )
-    } else {
-        ui.warn("无法获取文件大小，进度不可用");
-
-        let out_flag = format!("-o:{temp_folder}");
-        let extract_args = vec!["x", "-y", &pwd_flag, &out_flag, zip_file];
-
-        run_extract_simple(seven_zip_path, &extract_args, ui)
-    }
+    let extractor = crate::extractor::bandizip::BandizipExtractor::new(seven_zip_path.to_string());
+    try_extract_with_extractor(zip_file, temp_folder, password, &extractor, start_time, ui, debug, encoding)
 }
 
 pub fn parse_listing_metrics(listing: &str) -> Option<ArchiveMetrics> {
@@ -177,16 +221,22 @@ pub fn parse_listing_metrics(listing: &str) -> Option<ArchiveMetrics> {
     }
 }
 
-fn run_extract_with_progress(
-    seven_zip_path: &str,
-    args: &[&str],
+fn run_extract_with_progress_extractor(
+    extractor: &dyn Extractor,
+    zip_file: &str,
     temp_folder: &str,
+    password: &str,
     metrics: ArchiveMetrics,
     start_time: Instant,
     ui: &Arc<crate::ui::ConsoleUi>,
 ) -> anyhow::Result<bool> {
-    let mut cmd = Command::new(seven_zip_path);
-    cmd.args(args)
+    // 启动解压进程
+    let exe_path = extractor.exe_path().to_string();
+    let extract_args = extractor.extract_args(zip_file, temp_folder, password);
+    let args_ref: Vec<&str> = extract_args.iter().map(|s| s.as_str()).collect();
+
+    let mut cmd = Command::new(&exe_path);
+    cmd.args(&args_ref)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -235,54 +285,6 @@ fn run_extract_with_progress(
     stderr_handle.join().ok();
     progress_handle.join().ok();
 
-    eprintln!();
-
-    Ok(status.success())
-}
-
-fn run_extract_simple(
-    seven_zip_path: &str,
-    args: &[&str],
-    ui: &Arc<crate::ui::ConsoleUi>,
-) -> anyhow::Result<bool> {
-    let mut cmd = Command::new(seven_zip_path);
-    cmd.args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-
-    let mut child = cmd.spawn()?;
-
-    let mut stdout_pipe = child.stdout.take().unwrap();
-    let mut stderr_pipe = child.stderr.take().unwrap();
-
-    let t1 = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        stdout_pipe.read_to_end(&mut buf).ok();
-    });
-    let t2 = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        stderr_pipe.read_to_end(&mut buf).ok();
-    });
-
-    let mut spinner_index = 0usize;
-    while child.try_wait()?.is_none() {
-        ui.progress_unknown(spinner_index);
-        spinner_index += 1;
-        std::thread::sleep(std::time::Duration::from_millis(300));
-    }
-
-    t1.join().ok();
-    t2.join().ok();
-
-    let status = child.wait()?;
     eprintln!();
 
     Ok(status.success())
@@ -385,7 +387,15 @@ fn measure_folder(folder: &str) -> std::io::Result<(u64, u32)> {
     Ok((total_bytes, file_count))
 }
 
-fn print_simple_file_list(listing: &str, ui: &Arc<crate::ui::ConsoleUi>) {
+/// 通用文件列表打印（兼容 Bandizip 和 7-Zip 输出）
+fn print_simple_file_list_generic(listing: &str, ui: &Arc<crate::ui::ConsoleUi>, extractor_name: &str) {
+    // 7-Zip -slt 模式输出需要特殊处理：提取 Path = 值作为文件名
+    if extractor_name == "7-Zip" {
+        print_7zip_slt_file_list(listing, ui);
+        return;
+    }
+
+    // Bandizip 等其他引擎：按行过滤输出
     let lines: Vec<&str> = listing
         .lines()
         .map(|l| l.trim())
@@ -394,10 +404,12 @@ fn print_simple_file_list(listing: &str, ui: &Arc<crate::ui::ConsoleUi>) {
                 && !line.starts_with("----")
                 && !line.starts_with("bz ")
                 && !line.contains("Bandizip")
+                && !line.contains("7-Zip")
                 && !line.contains("Copyright")
                 && !line.starts_with("Listing archive:")
                 && !line.starts_with("Archive format:")
                 && !line.contains("files,")
+                && !line.contains("Igor Pavlov")
         })
         .collect();
 
@@ -417,6 +429,64 @@ fn print_simple_file_list(listing: &str, ui: &Arc<crate::ui::ConsoleUi>) {
             eprintln!("  {} {}", "📁".dimmed(), line.cyan());
         } else {
             eprintln!("  {} {}", "📄".dimmed(), line.white());
+        }
+    }
+    eprintln!();
+}
+
+/// 打印 7-Zip -slt 模式的文件列表（提取 Path = 值）
+fn print_7zip_slt_file_list(listing: &str, ui: &Arc<crate::ui::ConsoleUi>) {
+    let mut entries: Vec<(String, bool)> = Vec::new(); // (path, is_folder)
+    let mut current_path: Option<String> = None;
+    let mut current_is_folder = false;
+    let mut is_archive_header = false;
+
+    for raw_line in listing.lines() {
+        let line = raw_line.trim();
+
+        if let Some(path_val) = line.strip_prefix("Path =") {
+            let path = path_val.trim();
+            // 先保存上一个条目
+            if let Some(p) = current_path.take() {
+                if !p.is_empty() && !is_archive_header {
+                    entries.push((p, current_is_folder));
+                }
+            }
+            current_path = Some(path.to_string());
+            current_is_folder = false;
+            is_archive_header = false;
+        } else if current_path.is_some() {
+            if line == "Folder = +" {
+                current_is_folder = true;
+            } else if line.starts_with("Type =") || line.starts_with("Physical Size =") {
+                is_archive_header = true;
+            }
+        }
+    }
+
+    // 提交最后一个条目
+    if let Some(p) = current_path {
+        if !p.is_empty() && !is_archive_header {
+            entries.push((p, current_is_folder));
+        }
+    }
+
+    if entries.is_empty() {
+        return;
+    }
+
+    eprintln!();
+    let max_display = 15;
+    for (i, (path, is_folder)) in entries.iter().enumerate() {
+        if i >= max_display {
+            let remaining = entries.len() - max_display;
+            ui.info(&format!("... 还有 {} 个文件/文件夹", remaining));
+            break;
+        }
+        if *is_folder || path.ends_with('/') || path.ends_with('\\') {
+            eprintln!("  {} {}", "📁".dimmed(), path.cyan());
+        } else {
+            eprintln!("  {} {}", "📄".dimmed(), path.white());
         }
     }
     eprintln!();

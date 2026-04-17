@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::extractor::Extractor;
+
 const MAX_NESTED_DEPTH_LIMIT: u32 = 10;
 
 pub fn delete_file(
@@ -55,7 +57,7 @@ pub fn process_temp_folder(
     zip_file: &str,
     current_depth: u32,
     passwords: &[String],
-    seven_zip_path: &str,
+    extractor: &dyn Extractor,
     config: &crate::config::AppSettings,
     ui: &Arc<crate::ui::ConsoleUi>,
 ) -> Option<String> {
@@ -102,7 +104,7 @@ pub fn process_temp_folder(
         zip_file,
         current_depth,
         passwords,
-        seven_zip_path,
+        extractor,
         config,
         ui,
     );
@@ -131,7 +133,7 @@ fn determine_extracted_path(
     zip_file: &str,
     current_depth: u32,
     passwords: &[String],
-    seven_zip_path: &str,
+    extractor: &dyn Extractor,
     config: &crate::config::AppSettings,
     ui: &Arc<crate::ui::ConsoleUi>,
 ) -> Option<String> {
@@ -188,7 +190,7 @@ fn determine_extracted_path(
                 zip_file,
                 current_depth,
                 passwords,
-                seven_zip_path,
+                extractor,
                 config,
                 ui,
             );
@@ -272,7 +274,7 @@ fn handle_nested_archive(
     zip_file: &str,
     current_depth: u32,
     passwords: &[String],
-    seven_zip_path: &str,
+    extractor: &dyn Extractor,
     config: &crate::config::AppSettings,
     ui: &Arc<crate::ui::ConsoleUi>,
 ) -> Option<String> {
@@ -291,22 +293,22 @@ fn handle_nested_archive(
 
     for (idx, pwd) in passwords.iter().enumerate() {
         let debug_cmd = if config.debug_mode {
-            let pwd_flag = format!("-p:{pwd}");
-            Some(format!("l -list:v -y {pwd_flag} {archive_path}"))
+            Some(format!("{} list -y {}", extractor.exe_path(), archive_path))
         } else {
             None
         };
         ui.attempt_password(idx + 1, passwords.len(), pwd, debug_cmd.as_deref());
         let start = std::time::Instant::now();
 
-        match crate::archive::try_extract(
+        match crate::archive::try_extract_with_extractor(
             archive_path,
             &nested_temp_folder,
             pwd,
-            seven_zip_path,
+            extractor,
             start,
             ui,
             config.debug_mode,
+            &config.output_encoding,
         ) {
             Ok(true) => {
                 let _ = std::fs::remove_file(archive_path);
@@ -320,7 +322,7 @@ fn handle_nested_archive(
                     zip_file,
                     current_depth + 1,
                     passwords,
-                    seven_zip_path,
+                    extractor,
                     config,
                     ui,
                 );

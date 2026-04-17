@@ -1,15 +1,27 @@
 use std::sync::Arc;
-use winreg::enums::*;
-use winreg::RegKey;
 
 const REG_KEY_PATH: &str = r"Software\Classes\*\shell\SmartUnZip";
 const REG_CMD_PATH: &str = r"Software\Classes\*\shell\SmartUnZip\command";
 
+#[cfg(windows)]
+use winreg::enums::*;
+#[cfg(windows)]
+use winreg::RegKey;
+
 pub fn is_registered() -> bool {
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    hkcu.open_subkey(REG_KEY_PATH).is_ok()
+    #[cfg(windows)]
+    {
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        hkcu.open_subkey(REG_KEY_PATH).is_ok()
+    }
+
+    #[cfg(not(windows))]
+    {
+        false
+    }
 }
 
+#[cfg(windows)]
 fn add_internal() -> Result<(), String> {
     let exe_path = std::env::current_exe()
         .map(|p| p.to_string_lossy().to_string())
@@ -41,23 +53,39 @@ fn add_internal() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(windows)]
 fn remove_internal() -> Result<(), String> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     hkcu.delete_subkey_all(REG_KEY_PATH)
         .map_err(|e| format!("移除右键菜单失败: {}", e))
 }
 
-// 供命令行使用的带 UI 反馈的函数
 pub fn add(ui: &Arc<crate::ui::ConsoleUi>) {
-    match add_internal() {
-        Ok(()) => ui.success("已添加右键菜单"),
-        Err(e) => ui.error(&e),
+    #[cfg(windows)]
+    {
+        match add_internal() {
+            Ok(()) => ui.success("已添加右键菜单"),
+            Err(e) => ui.error(&e),
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        ui.warn("右键菜单功能仅支持 Windows");
     }
 }
 
 pub fn remove(ui: &Arc<crate::ui::ConsoleUi>) {
-    match remove_internal() {
-        Ok(()) => ui.success("已移除右键菜单"),
-        Err(e) => ui.error(&e),
+    #[cfg(windows)]
+    {
+        match remove_internal() {
+            Ok(()) => ui.success("已移除右键菜单"),
+            Err(e) => ui.error(&e),
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        ui.warn("右键菜单功能仅支持 Windows");
     }
 }

@@ -71,9 +71,11 @@ impl ConsoleUi {
         eprintln!("  {} {}", "◆".cyan(), title.cyan().bold());
     }
 
-    pub fn print_config(&self, config: &crate::config::AppSettings) {
+    pub fn print_config(&self, config: &crate::config::AppSettings, extractor: &dyn crate::extractor::Extractor) {
         self.debug_header("配置文件参数");
-        self.debug_item("Bandizip 路径", &config.seven_zip_path);
+        self.debug_item("解压引擎", &format!("{} ({})", extractor.name(), extractor.exe_path()));
+        self.debug_item("输出编码", &config.output_encoding);
+        self.debug_item("输出目录", if config.output_directory.is_empty() { "压缩包所在目录" } else { &config.output_directory });
         eprintln!();
 
         self.debug_section("解压选项");
@@ -176,6 +178,7 @@ impl ConsoleUi {
         self.inline(&msg);
     }
 
+    #[allow(dead_code)]
     pub fn progress_unknown(&self, spinner_index: usize) {
         let spinner = SPINNER_FRAMES[spinner_index % SPINNER_FRAMES.len()];
         let dots = ".".repeat((spinner_index % 3) + 1);

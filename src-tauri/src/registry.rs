@@ -4,13 +4,19 @@ use winreg::RegKey;
 const REG_KEY_PATH: &str = r"Software\Classes\*\shell\SmartUnZip";
 const REG_CMD_PATH: &str = r"Software\Classes\*\shell\SmartUnZip\command";
 
+#[cfg(windows)]
 pub fn is_registered() -> bool {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     hkcu.open_subkey(REG_KEY_PATH).is_ok()
 }
 
+#[cfg(not(windows))]
+pub fn is_registered() -> bool {
+    false
+}
+
+#[cfg(windows)]
 pub fn add() -> Result<(), String> {
-    // 获取当前可执行文件路径，并替换为 smartunzip.exe
     let current_exe = std::env::current_exe()
         .map_err(|e| format!("获取程序路径失败: {}", e))?;
     
@@ -47,8 +53,19 @@ pub fn add() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(not(windows))]
+pub fn add() -> Result<(), String> {
+    Err("右键菜单功能仅支持 Windows".to_string())
+}
+
+#[cfg(windows)]
 pub fn remove() -> Result<(), String> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     hkcu.delete_subkey_all(REG_KEY_PATH)
         .map_err(|e| format!("移除右键菜单失败: {}", e))
+}
+
+#[cfg(not(windows))]
+pub fn remove() -> Result<(), String> {
+    Err("右键菜单功能仅支持 Windows".to_string())
 }

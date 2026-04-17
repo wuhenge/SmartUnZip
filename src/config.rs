@@ -1,10 +1,23 @@
 use serde::Deserialize;
 use std::path::PathBuf;
 
-#[derive(Debug, Deserialize)]
+/// 默认解压引擎类型，修改此值即可切换默认引擎
+const DEFAULT_EXTRACTOR_TYPE: &str = "7zip";
+/// 默认输出编码
+const DEFAULT_OUTPUT_ENCODING: &str = "gbk";
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct AppSettings {
+    #[serde(rename = "ExtractorType", default = "default_extractor_type")]
+    pub extractor_type: String,
+    #[serde(rename = "OutputEncoding", default = "default_output_encoding")]
+    pub output_encoding: String,
     #[serde(rename = "SevenZipPath", default)]
     pub seven_zip_path: String,
+    #[serde(rename = "SevenZipPath7z", default)]
+    pub seven_zip_path_7z: String,
+    #[serde(rename = "OutputDirectory", default)]
+    pub output_directory: String,
     #[serde(rename = "AutoExit", default = "default_auto_exit")]
     pub auto_exit: bool,
     #[serde(
@@ -37,38 +50,36 @@ pub struct AppSettings {
     pub delete_folders: Vec<String>,
 }
 
+fn default_extractor_type() -> String {
+    DEFAULT_EXTRACTOR_TYPE.to_string()
+}
+fn default_output_encoding() -> String {
+    DEFAULT_OUTPUT_ENCODING.to_string()
+}
 fn default_nested_depth() -> u32 {
     0
 }
-
 fn default_auto_exit() -> bool {
     false
 }
-
 fn default_extract_nested_folders() -> bool {
     false
 }
-
 fn default_debug_mode() -> bool {
     false
 }
-
 fn default_delete_empty_folders() -> bool {
     false
 }
-
 fn default_create_folder_threshold() -> u32 {
     1
 }
-
 fn default_flatten_wrapper_folder() -> bool {
     false
 }
-
 fn default_delete_source_after_extract() -> bool {
     false
 }
-
 fn default_open_folder_after_extract() -> bool {
     false
 }
@@ -79,64 +90,6 @@ struct ConfigFile {
     app_settings: AppSettings,
 }
 
-#[cfg(windows)]
-const DEFAULT_CONFIG: &str = r#"{
-  "AppSettings": {
-    "SevenZipPath": "C:\\Program Files\\Bandizip\\bz.exe",
-    "AutoExit": false,
-    "ExtractNestedFolders": false,
-    "DebugMode": false,
-    "DeleteEmptyFolders": false,
-    "FlattenWrapperFolder": false,
-    "DeleteSourceAfterExtract": false,
-    "OpenFolderAfterExtract": false,
-    "NestedArchiveDepth": 0,
-    "CreateFolderThreshold": 1,
-    "Passwords": [
-      "1234",
-      "www",
-      "1111"
-    ],
-    "DeleteFiles": [
-      "说明.txt",
-      "更多资源.url"
-    ],
-    "DeleteFolders": [
-      "说明"
-    ]
-  }
-}
-"#;
-
-#[cfg(not(windows))]
-const DEFAULT_CONFIG: &str = r#"{
-  "AppSettings": {
-    "SevenZipPath": "",
-    "AutoExit": false,
-    "ExtractNestedFolders": false,
-    "DebugMode": false,
-    "DeleteEmptyFolders": false,
-    "FlattenWrapperFolder": false,
-    "DeleteSourceAfterExtract": false,
-    "OpenFolderAfterExtract": false,
-    "NestedArchiveDepth": 0,
-    "CreateFolderThreshold": 1,
-    "Passwords": [
-      "1234",
-      "www",
-      "1111"
-    ],
-    "DeleteFiles": [
-      "说明.txt",
-      "更多资源.url"
-    ],
-    "DeleteFolders": [
-      "说明"
-    ]
-  }
-}
-"#;
-
 pub fn load() -> anyhow::Result<AppSettings> {
     let exe_path = std::env::current_exe()?;
     let default_dir = PathBuf::from(".");
@@ -144,8 +97,7 @@ pub fn load() -> anyhow::Result<AppSettings> {
     let config_path = base_dir.join("appsettings.json");
 
     if !config_path.exists() {
-        std::fs::write(&config_path, DEFAULT_CONFIG)
-            .map_err(|e| anyhow::anyhow!("无法创建配置文件 {}: {}", config_path.display(), e))?;
+        anyhow::bail!("未找到配置文件: {}", config_path.display());
     }
 
     let content = std::fs::read_to_string(&config_path)
@@ -154,5 +106,30 @@ pub fn load() -> anyhow::Result<AppSettings> {
     let config: ConfigFile =
         serde_json::from_str(&content).map_err(|e| anyhow::anyhow!("配置文件解析失败: {}", e))?;
 
-    Ok(config.app_settings)
+    let mut settings = config.app_settings;
+    
+    if !matches!(settings.extractor_type.as_str(), "bandizip" | "7zip") {
+        settings.extractor_type = DEFAULT_EXTRACTOR_TYPE.to_string();
+    }
+    
+    if settings.output_encoding.is_empty() {
+        settings.output_encoding = DEFAULT_OUTPUT_ENCODING.to_string();
+    }
+    
+    Ok(settings)
+}
+
+/// 根据配置创建解压引擎
+pub fn create_extractor_from_config(settings: &AppSettings) -> Option<Box<dyn crate::extractor::Extractor>> {
+    let path = match settings.extractor_type.as_str() {
+        "bandizip" => settings.seven_zip_path.clone(),
+        "7zip" => settings.seven_zip_path_7z.clone(),
+        _ => return None,
+    };
+
+    if path.is_empty() {
+        return None;
+    }
+
+    crate::extractor::create_extractor(&settings.extractor_type, &path)
 }

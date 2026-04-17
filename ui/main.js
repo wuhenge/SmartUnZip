@@ -3,6 +3,7 @@ const openDialog = window.__TAURI__?.dialog?.open;
 
 let config = null;
 let originalConfig = null;
+let defaultExtractorType = '7zip'; // 从后端获取后更新
 
 function updateSaveButton() {
     const saveBtn = document.getElementById('btn-save');
@@ -53,6 +54,21 @@ function showError(message) {
     }, 5000);
 }
 
+/// 根据引擎类型更新路径组可见性
+function updatePathGroupVisibility() {
+    const type = document.getElementById('extractor-type').value;
+    const bzGroup = document.getElementById('bandizip-path-group');
+    const szGroup = document.getElementById('sevenzip-path-group');
+
+    if (type === 'bandizip') {
+        bzGroup.classList.remove('path-group-hidden');
+        szGroup.classList.add('path-group-hidden');
+    } else if (type === '7zip') {
+        bzGroup.classList.add('path-group-hidden');
+        szGroup.classList.remove('path-group-hidden');
+    }
+}
+
 async function init() {
     if (!invoke) {
         showError('Tauri API 不可用');
@@ -60,17 +76,15 @@ async function init() {
     }
 
     try {
-        const configPath = await invoke('get_config_path');
-        document.getElementById('config-path').textContent = configPath;
-
+        defaultExtractorType = await invoke('get_default_extractor_type');
         config = await invoke('load_config');
         console.log('Loaded config:', config);
         populateForm(config);
         originalConfig = collectForm();
         document.getElementById('btn-save').disabled = true;
 
-        // 初始化右键菜单状态
         await initContextMenuStatus();
+        updatePathGroupVisibility();
     } catch (e) {
         console.error('加载配置失败:', e);
         showError('加载配置失败: ' + e);
@@ -112,7 +126,6 @@ async function onContextMenuToggle() {
     } catch (e) {
         console.error('操作失败:', e);
         showToast('操作失败: ' + e, false);
-        // 恢复开关状态
         toggle.checked = contextMenuRegistered;
     } finally {
         isTogglingContextMenu = false;
@@ -121,7 +134,11 @@ async function onContextMenuToggle() {
 }
 
 function populateForm(config) {
+    document.getElementById('extractor-type').value = config.ExtractorType || defaultExtractorType;
+    document.getElementById('output-encoding').value = config.OutputEncoding || 'gbk';
+    document.getElementById('output-directory').value = config.OutputDirectory || '';
     document.getElementById('seven-zip-path').value = config.SevenZipPath || '';
+    document.getElementById('seven-zip-path-7z').value = config.SevenZipPath7z || '';
     document.getElementById('nested-depth').value = config.NestedArchiveDepth || 0;
     document.getElementById('auto-exit').checked = config.AutoExit || false;
     document.getElementById('extract-nested').checked = config.ExtractNestedFolders || false;
@@ -140,7 +157,7 @@ function populateForm(config) {
 }
 
 function setupChangeListeners() {
-    const inputs = document.querySelectorAll('input[type="text"], input[type="number"], input[type="checkbox"]');
+    const inputs = document.querySelectorAll('input[type="text"], input[type="number"], input[type="checkbox"], select');
     inputs.forEach(input => {
         input.addEventListener('input', updateSaveButton);
         input.addEventListener('change', updateSaveButton);
@@ -219,7 +236,11 @@ function escapeHtml(text) {
 
 function collectForm() {
     return {
+        ExtractorType: document.getElementById('extractor-type').value,
+        OutputEncoding: document.getElementById('output-encoding').value,
+        OutputDirectory: document.getElementById('output-directory').value,
         SevenZipPath: document.getElementById('seven-zip-path').value,
+        SevenZipPath7z: document.getElementById('seven-zip-path-7z').value,
         AutoExit: document.getElementById('auto-exit').checked,
         ExtractNestedFolders: document.getElementById('extract-nested').checked,
         DebugMode: document.getElementById('debug-mode').checked,
@@ -266,55 +287,14 @@ document.getElementById('btn-save').addEventListener('click', async () => {
     }
 });
 
-document.getElementById('btn-reset').addEventListener('click', () => {
-    showModal();
+// 引擎类型切换
+document.getElementById('extractor-type').addEventListener('change', () => {
+    updatePathGroupVisibility();
+    updateSaveButton();
 });
 
-function showModal() {
-    const overlay = document.getElementById('modal-overlay');
-    overlay.classList.add('show');
-}
-
-function hideModal() {
-    const overlay = document.getElementById('modal-overlay');
-    overlay.classList.remove('show');
-}
-
-function resetConfig() {
-    config = {
-        SevenZipPath: 'C:\\Program Files\\Bandizip\\bz.exe',
-        AutoExit: false,
-        ExtractNestedFolders: false,
-        DebugMode: false,
-        DeleteEmptyFolders: false,
-        FlattenWrapperFolder: false,
-        DeleteSourceAfterExtract: false,
-        OpenFolderAfterExtract: false,
-        NestedArchiveDepth: 0,
-        CreateFolderThreshold: 1,
-        Passwords: ['1234', 'www', '1111'],
-        DeleteFiles: ['说明.txt', '更多资源.url'],
-        DeleteFolders: ['说明'],
-    };
-    populateForm(config);
-    document.getElementById('btn-save').disabled = false;
-    showToast('已重置为默认设置');
-}
-
-document.getElementById('modal-cancel').addEventListener('click', hideModal);
-
-document.getElementById('modal-confirm').addEventListener('click', () => {
-    hideModal();
-    resetConfig();
-});
-
-document.getElementById('modal-overlay').addEventListener('click', (e) => {
-    if (e.target.id === 'modal-overlay') {
-        hideModal();
-    }
-});
-
-document.getElementById('btn-browse').addEventListener('click', async () => {
+// Bandizip 文件选择
+document.getElementById('btn-browse-bz').addEventListener('click', async () => {
     if (!openDialog) {
         showError('文件对话框不可用');
         return;
@@ -329,35 +309,97 @@ document.getElementById('btn-browse').addEventListener('click', async () => {
         });
         if (selected) {
             document.getElementById('seven-zip-path').value = selected;
-            validatePath(selected);
+            validatePath(selected, 'bandizip');
         }
     } catch (e) {
         console.error('选择文件失败:', e);
     }
 });
 
-document.getElementById('seven-zip-path').addEventListener('blur', () => {
-    const path = document.getElementById('seven-zip-path').value;
-    if (path) {
-        validatePath(path);
+// 7-Zip 文件选择
+document.getElementById('btn-browse-7z').addEventListener('click', async () => {
+    if (!openDialog) {
+        showError('文件对话框不可用');
+        return;
+    }
+    try {
+        const selected = await openDialog({
+            multiple: false,
+            filters: [{
+                name: 'Executable',
+                extensions: ['exe', '*']
+            }]
+        });
+        if (selected) {
+            document.getElementById('seven-zip-path-7z').value = selected;
+            validatePath(selected, '7zip');
+        }
+    } catch (e) {
+        console.error('选择文件失败:', e);
     }
 });
 
-async function validatePath(path) {
-    const browseBtn = document.getElementById('btn-browse');
-    const originalText = browseBtn.textContent;
-    browseBtn.textContent = '验证中...';
-    browseBtn.disabled = true;
-
+// 输出目录选择
+document.getElementById('btn-browse-output').addEventListener('click', async () => {
+    if (!openDialog) {
+        showError('文件对话框不可用');
+        return;
+    }
     try {
-        const result = await invoke('validate_bandizip_path', { path });
+        const selected = await openDialog({
+            directory: true,
+            multiple: false,
+        });
+        if (selected) {
+            document.getElementById('output-directory').value = selected;
+            updateSaveButton();
+        }
+    } catch (e) {
+        console.error('选择目录失败:', e);
+    }
+});
+
+async function validatePath(path, extractorType) {
+    showValidationLoading();
+    try {
+        const result = await invoke('validate_extractor_path', { path, extractorType });
         showValidationModal(result.valid, result.message);
     } catch (e) {
         showValidationModal(false, '验证失败: ' + e);
-    } finally {
-        browseBtn.textContent = originalText;
-        browseBtn.disabled = false;
     }
+}
+
+function showValidationLoading() {
+    const existingModal = document.getElementById('validation-modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'validation-modal-overlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+        <div class="modal validation-modal">
+            <div class="validation-icon-wrapper">
+                <svg class="validation-icon spinning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6"/>
+                    <path d="M1 20v-6h6"/>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+            </div>
+            <div class="modal-header">
+                <h3>验证中...</h3>
+            </div>
+            <div class="modal-body">
+                <p>正在验证解压工具，请稍候</p>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => {
+        overlay.classList.add('show');
+    });
 }
 
 function showValidationModal(success, message) {

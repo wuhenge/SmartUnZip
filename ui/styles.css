@@ -257,6 +257,11 @@ input[type="text"]::placeholder {
     color: var(--text-quaternary);
 }
 
+input[type="text"][readonly] {
+    cursor: default;
+    opacity: 0.85;
+}
+
 input[type="number"] {
     width: 44px;
     text-align: center;
@@ -770,6 +775,50 @@ input[type="number"] {
 
 .path-input-group input {
     flex: 1;
+}
+
+.extractor-select {
+    width: 100%;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-standard);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8f98' stroke-width='2'%3E%3Cpolyline points='6,9 12,15 18,9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+
+.extractor-select:focus {
+    border-color: var(--accent-violet);
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+.extractor-select option {
+    background: var(--bg-surface);
+    color: var(--text-primary);
+}
+
+::root[data-theme="light"] .extractor-select {
+    background-color: rgba(0, 0, 0, 0.02);
+    border-color: var(--border-secondary);
+}
+
+::root[data-theme="light"] .extractor-select:focus {
+    background-color: rgba(0, 0, 0, 0.04);
+    border-color: var(--accent-violet);
+}
+
+.path-group-hidden {
+    display: none;
 }
 
 .validation-status {
