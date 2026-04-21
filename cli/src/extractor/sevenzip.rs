@@ -1,4 +1,4 @@
-use super::{Extractor, ListOutput};
+use super::{Extractor, ListOutput, ProgressStrategy};
 
 pub struct SevenZipExtractor {
     exe_path: String,
@@ -89,12 +89,22 @@ impl Extractor for SevenZipExtractor {
     }
 
     fn extract_args(&self, archive: &str, output_dir: &str, password: &str) -> Vec<String> {
-        let mut args = vec!["x".to_string(), "-y".to_string(), format!("-o{output_dir}")];
+        let mut args = vec![
+            "x".to_string(),
+            "-y".to_string(),
+            "-bso0".to_string(),
+            "-bsp1".to_string(),
+            format!("-o{output_dir}"),
+        ];
         if !password.is_empty() {
             args.push(format!("-p{password}"));
         }
         args.push(archive.to_string());
         args
+    }
+
+    fn progress_strategy(&self) -> ProgressStrategy {
+        ProgressStrategy::NativeCli
     }
 }
 

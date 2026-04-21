@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::extractor::Extractor;
+use crate::extractor::{Extractor, ProgressStrategy};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ArchiveMetrics {
@@ -129,15 +129,26 @@ pub fn try_extract_with_extractor(
 
     // 2. 解压
     if metrics.total_bytes > 0 {
-        run_extract_with_progress_extractor(
-            extractor,
-            zip_file,
-            temp_folder,
-            password,
-            metrics,
-            start_time,
-            ui,
-        )
+        match extractor.progress_strategy() {
+            ProgressStrategy::NativeCli => run_extract_with_native_progress(
+                extractor,
+                zip_file,
+                temp_folder,
+                password,
+                metrics,
+                start_time,
+                ui,
+            ),
+            ProgressStrategy::FilesystemScan => run_extract_with_filesystem_progress(
+                extractor,
+                zip_file,
+                temp_folder,
+                password,
+                metrics,
+                start_time,
+                ui,
+            ),
+        }
     } else {
         ui.warn("无法获取文件大小，进度不可用");
         extractor.extract(zip_file, temp_folder, password, encoding)?;
@@ -221,7 +232,7 @@ pub fn parse_listing_metrics(listing: &str) -> Option<ArchiveMetrics> {
     }
 }
 
-fn run_extract_with_progress_extractor(
+fn run_extract_with_filesystem_progress(
     extractor: &dyn Extractor,
     zip_file: &str,
     temp_folder: &str,
@@ -290,6 +301,72 @@ fn run_extract_with_progress_extractor(
     Ok(status.success())
 }
 
+fn run_extract_with_native_progress(
+    extractor: &dyn Extractor,
+    zip_file: &str,
+    temp_folder: &str,
+    password: &str,
+    metrics: ArchiveMetrics,
+    start_time: Instant,
+    ui: &Arc<crate::ui::ConsoleUi>,
+) -> anyhow::Result<bool> {
+    let exe_path = extractor.exe_path().to_string();
+    let extract_args = extractor.extract_args(zip_file, temp_folder, password);
+    let args_ref: Vec<&str> = extract_args.iter().map(|s| s.as_str()).collect();
+
+    let mut cmd = Command::new(&exe_path);
+    cmd.args(&args_ref)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let mut child = cmd.spawn()?;
+    let stdout_pipe = child.stdout.take().unwrap();
+    let stderr_pipe = child.stderr.take().unwrap();
+    let total_bytes = metrics.total_bytes;
+    let ui_clone = ui.clone();
+
+    let stdout_handle = std::thread::spawn(move || {
+        track_native_progress(stdout_pipe, total_bytes, start_time, &ui_clone);
+    });
+
+    let stderr_handle = std::thread::spawn(move || {
+        let mut reader = stderr_pipe;
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).ok();
+        String::from_utf8_lossy(&buf).to_string()
+    });
+
+    let status = child.wait()?;
+    stdout_handle.join().ok();
+    let stderr_output = stderr_handle.join().unwrap_or_default();
+
+    eprintln!();
+
+    if status.success() {
+        Ok(true)
+    } else {
+        let message = stderr_output.trim();
+        if message.is_empty() {
+            Ok(false)
+        } else {
+            anyhow::bail!(
+                "{} 瑙ｅ帇澶辫触 (exit code {}): {}",
+                extractor.name(),
+                status.code().unwrap_or(-1),
+                message
+            );
+        }
+    }
+}
+
 fn track_progress(
     temp_folder: &str,
     total_bytes: u64,
@@ -350,6 +427,108 @@ fn track_progress(
 
     // Final 100% progress
     ui.progress(100, total_bytes, total_bytes, -1, spinner_index, 0.0, 0.0);
+}
+
+fn track_native_progress(
+    mut stdout_pipe: impl Read,
+    total_bytes: u64,
+    start_time: Instant,
+    ui: &Arc<crate::ui::ConsoleUi>,
+) {
+    let mut buffer = [0u8; 512];
+    let mut pending = String::new();
+    let mut spinner_index = 0usize;
+    let mut last_percent = None;
+
+    loop {
+        match stdout_pipe.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(n) => {
+                pending.push_str(&String::from_utf8_lossy(&buffer[..n]));
+
+                let mut complete_segments = Vec::new();
+                let mut start = 0usize;
+                for (idx, ch) in pending.char_indices() {
+                    if ch == '\r' || ch == '\n' {
+                        complete_segments.push(pending[start..idx].to_string());
+                        start = idx + ch.len_utf8();
+                    }
+                }
+
+                if start > 0 {
+                    pending = pending[start..].to_string();
+                }
+
+                for segment in complete_segments {
+                    if let Some(percent) = parse_7zip_progress_percent(&segment) {
+                        render_native_progress(
+                            percent,
+                            total_bytes,
+                            start_time,
+                            spinner_index,
+                            ui,
+                        );
+                        spinner_index += 1;
+                        last_percent = Some(percent);
+                    }
+                }
+            }
+            Err(_) => break,
+        }
+    }
+
+    if let Some(percent) = parse_7zip_progress_percent(&pending) {
+        render_native_progress(percent, total_bytes, start_time, spinner_index, ui);
+        spinner_index += 1;
+        last_percent = Some(percent);
+    }
+
+    if last_percent != Some(100) {
+        render_native_progress(100, total_bytes, start_time, spinner_index, ui);
+    }
+}
+
+fn render_native_progress(
+    percent: u32,
+    total_bytes: u64,
+    start_time: Instant,
+    spinner_index: usize,
+    ui: &Arc<crate::ui::ConsoleUi>,
+) {
+    let percent = percent.min(100);
+    let extracted_bytes = total_bytes.saturating_mul(percent as u64) / 100;
+    let elapsed = start_time.elapsed().as_secs_f64();
+    let extracted_mb = extracted_bytes as f64 / 1024.0 / 1024.0;
+    let total_mb = total_bytes as f64 / 1024.0 / 1024.0;
+    let speed_mbps = if elapsed > 0.0 {
+        extracted_mb / elapsed
+    } else {
+        0.0
+    };
+    let remaining_seconds = if speed_mbps > 0.0 && percent < 100 {
+        (total_mb - extracted_mb).max(0.0) / speed_mbps
+    } else {
+        0.0
+    };
+
+    ui.progress(
+        percent,
+        extracted_bytes,
+        total_bytes,
+        -1,
+        spinner_index,
+        speed_mbps,
+        remaining_seconds,
+    );
+}
+
+fn parse_7zip_progress_percent(text: &str) -> Option<u32> {
+    static PERCENT_RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let re = PERCENT_RE.get_or_init(|| Regex::new(r"(?m)(\d{1,3})%").unwrap());
+    re.captures(text)
+        .and_then(|caps| caps.get(1))
+        .and_then(|m| m.as_str().parse::<u32>().ok())
+        .map(|percent| percent.min(100))
 }
 
 fn measure_folder(folder: &str) -> std::io::Result<(u64, u32)> {
@@ -490,4 +669,27 @@ fn print_7zip_slt_file_list(listing: &str, ui: &Arc<crate::ui::ConsoleUi>) {
         }
     }
     eprintln!();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_7zip_progress_percent;
+
+    #[test]
+    fn parses_plain_percent_line() {
+        assert_eq!(parse_7zip_progress_percent(" 12% - file.txt"), Some(12));
+    }
+
+    #[test]
+    fn parses_percent_with_extra_text() {
+        assert_eq!(
+            parse_7zip_progress_percent("Extracting 100% some/path/file.txt"),
+            Some(100)
+        );
+    }
+
+    #[test]
+    fn ignores_non_progress_text() {
+        assert_eq!(parse_7zip_progress_percent("Everything is Ok"), None);
+    }
 }

@@ -9,6 +9,12 @@ pub struct ListOutput {
     pub raw_stdout: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgressStrategy {
+    FilesystemScan,
+    NativeCli,
+}
+
 /// 解压引擎统一接口
 pub trait Extractor: Send + Sync {
     /// 引擎名称
@@ -25,6 +31,10 @@ pub trait Extractor: Send + Sync {
 
     /// 构建解压命令参数（供进度跟踪使用）
     fn extract_args(&self, archive: &str, output_dir: &str, password: &str) -> Vec<String>;
+
+    fn progress_strategy(&self) -> ProgressStrategy {
+        ProgressStrategy::FilesystemScan
+    }
 
     /// 验证可执行文件是否可用
     fn validate(&self, path: &str) -> bool {
