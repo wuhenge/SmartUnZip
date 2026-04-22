@@ -1,96 +1,95 @@
 use serde::Deserialize;
 use std::path::PathBuf;
 
-/// 默认解压引擎类型，修改此值即可切换默认引擎
-const DEFAULT_EXTRACTOR_TYPE: &str = "7zip";
-/// 默认输出编码（Windows 控制台为 GBK，其他平台为 UTF-8）
-#[cfg(windows)]
-const DEFAULT_OUTPUT_ENCODING: &str = "gbk";
-#[cfg(not(windows))]
-const DEFAULT_OUTPUT_ENCODING: &str = "utf-8";
+const DEFAULT_OUTPUT_ENCODING: &str = if cfg!(windows) { "gbk" } else { "utf-8" };
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct AppSettings {
-    #[serde(rename = "ExtractorType", default = "default_extractor_type")]
-    pub extractor_type: String,
-    #[serde(rename = "OutputEncoding", default = "default_output_encoding")]
     pub output_encoding: String,
-    #[serde(rename = "SevenZipPath", default)]
     pub seven_zip_path: String,
-    #[serde(rename = "SevenZipPath7z", default)]
-    pub seven_zip_path_7z: String,
-    #[serde(rename = "OutputDirectory", default)]
     pub output_directory: String,
-    #[serde(rename = "AutoExit", default = "default_auto_exit")]
     pub auto_exit: bool,
-    #[serde(
-        rename = "ExtractNestedFolders",
-        default = "default_extract_nested_folders"
-    )]
     pub extract_nested_folders: bool,
-    #[serde(rename = "DebugMode", default = "default_debug_mode")]
     pub debug_mode: bool,
-    #[serde(
-        rename = "DeleteEmptyFolders",
-        default = "default_delete_empty_folders"
-    )]
     pub delete_empty_folders: bool,
-    #[serde(rename = "FlattenWrapperFolder", default = "default_flatten_wrapper_folder")]
     pub flatten_wrapper_folder: bool,
-    #[serde(rename = "DeleteSourceAfterExtract", default = "default_delete_source_after_extract")]
     pub delete_source_after_extract: bool,
-    #[serde(rename = "OpenFolderAfterExtract", default = "default_open_folder_after_extract")]
     pub open_folder_after_extract: bool,
-    #[serde(rename = "NestedArchiveDepth", default = "default_nested_depth")]
     pub nested_archive_depth: u32,
-    #[serde(rename = "CreateFolderThreshold", default = "default_create_folder_threshold")]
     pub create_folder_threshold: u32,
-    #[serde(rename = "Passwords", default)]
     pub passwords: Vec<String>,
-    #[serde(rename = "DeleteFiles", default)]
     pub delete_files: Vec<String>,
-    #[serde(rename = "DeleteFolders", default)]
     pub delete_folders: Vec<String>,
 }
 
-fn default_extractor_type() -> String {
-    DEFAULT_EXTRACTOR_TYPE.to_string()
+#[derive(Deserialize)]
+struct RawAppSettings {
+    #[serde(rename = "OutputEncoding", default)]
+    output_encoding: String,
+    #[serde(rename = "SevenZipPath", default)]
+    seven_zip_path: String,
+    #[serde(rename = "OutputDirectory", default)]
+    output_directory: String,
+    #[serde(rename = "AutoExit", default)]
+    auto_exit: bool,
+    #[serde(rename = "ExtractNestedFolders", default)]
+    extract_nested_folders: bool,
+    #[serde(rename = "DebugMode", default)]
+    debug_mode: bool,
+    #[serde(rename = "DeleteEmptyFolders", default)]
+    delete_empty_folders: bool,
+    #[serde(rename = "FlattenWrapperFolder", default)]
+    flatten_wrapper_folder: bool,
+    #[serde(rename = "DeleteSourceAfterExtract", default)]
+    delete_source_after_extract: bool,
+    #[serde(rename = "OpenFolderAfterExtract", default)]
+    open_folder_after_extract: bool,
+    #[serde(rename = "NestedArchiveDepth", default)]
+    nested_archive_depth: u32,
+    #[serde(rename = "CreateFolderThreshold", default = "default_create_folder_threshold")]
+    create_folder_threshold: u32,
+    #[serde(rename = "Passwords", default)]
+    passwords: Vec<String>,
+    #[serde(rename = "DeleteFiles", default)]
+    delete_files: Vec<String>,
+    #[serde(rename = "DeleteFolders", default)]
+    delete_folders: Vec<String>,
 }
-fn default_output_encoding() -> String {
-    DEFAULT_OUTPUT_ENCODING.to_string()
-}
-fn default_nested_depth() -> u32 {
-    0
-}
-fn default_auto_exit() -> bool {
-    false
-}
-fn default_extract_nested_folders() -> bool {
-    false
-}
-fn default_debug_mode() -> bool {
-    false
-}
-fn default_delete_empty_folders() -> bool {
-    false
-}
+
 fn default_create_folder_threshold() -> u32 {
     1
 }
-fn default_flatten_wrapper_folder() -> bool {
-    false
-}
-fn default_delete_source_after_extract() -> bool {
-    false
-}
-fn default_open_folder_after_extract() -> bool {
-    false
+
+impl From<RawAppSettings> for AppSettings {
+    fn from(raw: RawAppSettings) -> Self {
+        Self {
+            output_encoding: if raw.output_encoding.is_empty() {
+                DEFAULT_OUTPUT_ENCODING.to_string()
+            } else {
+                raw.output_encoding
+            },
+            seven_zip_path: raw.seven_zip_path,
+            output_directory: raw.output_directory,
+            auto_exit: raw.auto_exit,
+            extract_nested_folders: raw.extract_nested_folders,
+            debug_mode: raw.debug_mode,
+            delete_empty_folders: raw.delete_empty_folders,
+            flatten_wrapper_folder: raw.flatten_wrapper_folder,
+            delete_source_after_extract: raw.delete_source_after_extract,
+            open_folder_after_extract: raw.open_folder_after_extract,
+            nested_archive_depth: raw.nested_archive_depth,
+            create_folder_threshold: raw.create_folder_threshold,
+            passwords: raw.passwords,
+            delete_files: raw.delete_files,
+            delete_folders: raw.delete_folders,
+        }
+    }
 }
 
 #[derive(Deserialize)]
 struct ConfigFile {
     #[serde(rename = "AppSettings")]
-    app_settings: AppSettings,
+    app_settings: RawAppSettings,
 }
 
 pub fn load() -> anyhow::Result<AppSettings> {
@@ -100,7 +99,7 @@ pub fn load() -> anyhow::Result<AppSettings> {
     let config_path = base_dir.join("appsettings.json");
 
     if !config_path.exists() {
-        anyhow::bail!("未找到配置文件: {}", config_path.display());
+        anyhow::bail!("未找到配置文件 {}", config_path.display());
     }
 
     let content = std::fs::read_to_string(&config_path)
@@ -109,30 +108,15 @@ pub fn load() -> anyhow::Result<AppSettings> {
     let config: ConfigFile =
         serde_json::from_str(&content).map_err(|e| anyhow::anyhow!("配置文件解析失败: {}", e))?;
 
-    let mut settings = config.app_settings;
-    
-    if !matches!(settings.extractor_type.as_str(), "bandizip" | "7zip") {
-        settings.extractor_type = DEFAULT_EXTRACTOR_TYPE.to_string();
-    }
-    
-    if settings.output_encoding.is_empty() {
-        settings.output_encoding = DEFAULT_OUTPUT_ENCODING.to_string();
-    }
-    
-    Ok(settings)
+    Ok(config.app_settings.into())
 }
 
-/// 根据配置创建解压引擎
-pub fn create_extractor_from_config(settings: &AppSettings) -> Option<Box<dyn crate::extractor::Extractor>> {
-    let path = match settings.extractor_type.as_str() {
-        "bandizip" => settings.seven_zip_path.clone(),
-        "7zip" => settings.seven_zip_path_7z.clone(),
-        _ => return None,
-    };
-
-    if path.is_empty() {
+pub fn create_extractor_from_config(
+    settings: &AppSettings,
+) -> Option<Box<dyn crate::extractor::Extractor>> {
+    if settings.seven_zip_path.is_empty() {
         return None;
     }
 
-    crate::extractor::create_extractor(&settings.extractor_type, &path)
+    crate::extractor::create_extractor("7zip", &settings.seven_zip_path)
 }

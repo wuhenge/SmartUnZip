@@ -18,7 +18,7 @@
 - 🔄 **检查更新** - 内置检查更新功能（GUI 模式）
 - 🎨 **图形界面** - Tauri 驱动的现代化配置界面
 - 📂 **自定义输出** - 可配置解压输出目录，不指定则解压到压缩包所在目录
-- 🔧 **双引擎支持** - 支持 7-Zip 和 Bandizip 两种解压引擎
+- 🔧 **7-Zip 引擎** - 统一使用 7-Zip 作为解压引擎
 - 🖥️ **跨平台支持** - 支持 Windows、macOS、Linux
 
 ## 📋 系统要求
@@ -29,10 +29,10 @@
 | macOS | macOS 10.15+ |
 | Linux | Ubuntu 22.04+ 或其他主流发行版 |
 
-- [7-Zip](https://7-zip.org/) (7z/7z.exe) 或 [Bandizip](https://www.bandisoft.com/bandizip/) (bz.exe)（仅 Windows）
+- [7-Zip](https://7-zip.org/) (7z/7z.exe/7zz)
 - Rust 1.70+（仅编译时需要）
 
-> ⚠️ **注意**：本工具调用 7-Zip 或 Bandizip 的命令行接口。Bandizip 免费版仅供个人使用，在商业环境或企业内部使用请自行向 Bandisoft 购买合适的许可证。macOS/Linux 用户推荐安装 [7-Zip](https://7-zip.org/)（Linux 下为 `p7zip` 或 `7zz`）。
+> ⚠️ **注意**：本工具调用 7-Zip 的命令行接口。macOS/Linux 用户推荐安装 [7-Zip](https://7-zip.org/)（Linux 下为 `p7zip` 或 `7zz`）。
 
 ## 📥 安装
 
@@ -75,9 +75,7 @@ cargo tauri build
 ```json
 {
   "AppSettings": {
-    "ExtractorType": "7zip",
-    "SevenZipPath": "C:\\Program Files\\Bandizip\\bz.exe",
-    "SevenZipPath7z": "C:\\Program Files\\7-Zip\\7z.exe",
+    "SevenZipPath": "C:\\Program Files\\7-Zip\\7z.exe",
     "OutputEncoding": "gbk",
     "OutputDirectory": "",
     "NestedArchiveDepth": 0,
@@ -100,9 +98,7 @@ cargo tauri build
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `ExtractorType` | string | `"7zip"` | 解压引擎，可选 `"7zip"` 或 `"bandizip"` |
-| `SevenZipPath` | string | - | Bandizip (bz.exe) 的路径 |
-| `SevenZipPath7z` | string | - | 7-Zip (7z/7z.exe/7zz) 的路径 |
+| `SevenZipPath` | string | - | 7-Zip (7z/7z.exe/7zz) 的路径 |
 | `OutputEncoding` | string | 见右 | 输出编码，Windows: `gbk`，其他: `utf-8`，还支持 `shift_jis`、`euc-kr`、`big5` |
 | `OutputDirectory` | string | `""` | 自定义解压输出目录，为空则解压到压缩包所在目录 |
 | `NestedArchiveDepth` | number | 0 | 嵌套压缩包最大解压层数（0=禁用） |
@@ -164,7 +160,6 @@ SmartUnZip/
 │       └── extractor/      # 解压引擎抽象
 │           ├── mod.rs       # Extractor trait 定义
 │           ├── sevenzip.rs  # 7-Zip 引擎实现
-│           └── bandizip.rs  # Bandizip 引擎实现
 ├── src-tauri/              # GUI 前端（smartunzip）
 │   ├── src/
 │   │   ├── main.rs         # Tauri 主程序
@@ -189,7 +184,7 @@ SmartUnZip/
 
 - **后端**: Rust + Tauri 2
 - **前端**: HTML5 + CSS3 + JavaScript (Vanilla)
-- **解压引擎**: 7-Zip / Bandizip
+- **解压引擎**: 7-Zip
 - **编码处理**: [encoding_rs](https://crates.io/crates/encoding_rs)
 
 ## 🤝 贡献
@@ -203,7 +198,6 @@ SmartUnZip/
 ## 🙏 致谢
 
 - [7-Zip](https://7-zip.org/) - 解压引擎
-- [Bandizip](https://www.bandisoft.com/bandizip/) - 解压引擎
 - [Tauri](https://tauri.app/) - 跨平台应用框架
 - [serde](https://serde.rs/) - 序列化框架
 - [colored](https://crates.io/crates/colored) - 终端彩色输出

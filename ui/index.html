@@ -9,9 +9,7 @@
 <body>
     <div class="app-container">
         <header class="app-header">
-            <div class="app-title">
-                SmartUnZip 设置
-            </div>
+            <div class="app-title">SmartUnZip 设置</div>
             <div class="header-actions">
                 <button class="btn btn-ghost btn-sm" id="btn-check-update" title="检查更新">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -52,63 +50,43 @@
         <main class="app-content">
             <section class="section">
                 <div class="section-header">
-                    <h2 class="section-title">解压引擎</h2>
+                    <h2 class="section-title">7-Zip 设置</h2>
                 </div>
                 <div class="section-content">
                     <div class="form-group with-description">
-                        <label class="form-label">引擎类型</label>
-                        <p class="form-description">选择解压工具</p>
-                        <div class="form-control" style="width:100%;margin-top:8px;">
-                            <select id="extractor-type" class="extractor-select">
-                                <option value="7zip">7-Zip</option>
-                                <option value="bandizip">Bandizip</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group with-description" id="bandizip-path-group">
-                        <label class="form-label">Bandizip 路径</label>
-                        <p class="form-description">指定 bz.exe 的完整路径</p>
-                        <div class="form-control path-input-group">
-                            <input type="text" id="seven-zip-path" placeholder="C:\Program Files\Bandizip\bz.exe" readonly>
-                            <button class="btn btn-ghost btn-sm" id="btn-browse-bz">选择文件</button>
-                        </div>
-                    </div>
-
-                    <div class="form-group with-description" id="sevenzip-path-group">
                         <label class="form-label">7-Zip 路径</label>
-                        <p class="form-description">指定 7z/7zz 的完整路径</p>
+                        <p class="form-description">指定 7z.exe / 7z / 7zz 的完整路径</p>
                         <div class="form-control path-input-group">
-                            <input type="text" id="seven-zip-path-7z" placeholder="C:\Program Files\7-Zip\7z.exe" readonly>
+                            <input type="text" id="seven-zip-path" placeholder="C:\Program Files\7-Zip\7z.exe" readonly>
                             <button class="btn btn-ghost btn-sm" id="btn-browse-7z">选择文件</button>
                         </div>
                     </div>
 
                     <div class="form-group with-description">
                         <label class="form-label">输出编码</label>
-                        <p class="form-description">解压工具的控制台输出编码，中文 Windows 通常为 GBK</p>
+                        <p class="form-description">用于解析 7-Zip 控制台输出。Windows 常用 GBK，其他平台通常使用 UTF-8</p>
                         <div class="form-control" style="width:100%;margin-top:8px;">
                             <select id="output-encoding" class="extractor-select">
-                                <option value="gbk">GBK (默认)</option>
+                                <option value="gbk">GBK</option>
                                 <option value="utf-8">UTF-8</option>
-                                <option value="shift_jis">Shift_JIS (日文)</option>
-                                <option value="euc-kr">EUC-KR (韩文)</option>
-                                <option value="big5">Big5 (繁体中文)</option>
+                                <option value="shift_jis">Shift_JIS</option>
+                                <option value="euc-kr">EUC-KR</option>
+                                <option value="big5">Big5</option>
                             </select>
                         </div>
                     </div>
 
                     <div class="form-group with-description">
                         <label class="form-label">输出目录</label>
-                        <p class="form-description">自定义解压输出目录，留空则解压到压缩包所在目录</p>
+                        <p class="form-description">留空则解压到压缩包所在目录</p>
                         <div class="form-control path-input-group">
-                            <input type="text" id="output-directory" placeholder="留空则解压到压缩包所在目录">
+                            <input type="text" id="output-directory" placeholder="留空则使用压缩包所在目录">
                             <button class="btn btn-ghost btn-sm" id="btn-browse-output">选择目录</button>
                         </div>
                     </div>
 
                     <div class="form-group" id="context-menu-group">
-                        <label class="form-label">右键菜单 (仅 Windows)</label>
+                        <label class="form-label">右键菜单（仅 Windows）</label>
                         <div class="form-control">
                             <label class="toggle-switch">
                                 <input type="checkbox" id="context-menu-toggle">
@@ -126,116 +104,56 @@
                 <div class="section-content">
                     <div class="form-group">
                         <label class="form-label">自动退出</label>
-                        <div class="form-control">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="auto-exit">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
+                        <div class="form-control"><label class="toggle-switch"><input type="checkbox" id="auto-exit"><span class="toggle-slider"></span></label></div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">展平嵌套文件夹</label>
-                        <div class="form-control">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="extract-nested">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
+                        <label class="form-label">展开嵌套文件夹</label>
+                        <div class="form-control"><label class="toggle-switch"><input type="checkbox" id="extract-nested"><span class="toggle-slider"></span></label></div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">调试模式</label>
-                        <div class="form-control">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="debug-mode">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
+                        <div class="form-control"><label class="toggle-switch"><input type="checkbox" id="debug-mode"><span class="toggle-slider"></span></label></div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">删除空文件夹</label>
-                        <div class="form-control">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="delete-empty">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
+                        <div class="form-control"><label class="toggle-switch"><input type="checkbox" id="delete-empty"><span class="toggle-slider"></span></label></div>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">展平包装文件夹</label>
-                        <div class="form-control">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="flatten-wrapper">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
+                        <label class="form-label">提升单层包裹文件夹</label>
+                        <div class="form-control"><label class="toggle-switch"><input type="checkbox" id="flatten-wrapper"><span class="toggle-slider"></span></label></div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">解压后删除源文件</label>
-                        <div class="form-control">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="delete-source">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
+                        <div class="form-control"><label class="toggle-switch"><input type="checkbox" id="delete-source"><span class="toggle-slider"></span></label></div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">解压后打开文件夹</label>
-                        <div class="form-control">
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="open-folder">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
+                        <div class="form-control"><label class="toggle-switch"><input type="checkbox" id="open-folder"><span class="toggle-slider"></span></label></div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">嵌套解压深度</label>
-                        <div class="form-control">
-                            <input type="number" id="nested-depth" min="0" max="10" value="0">
-                        </div>
+                        <div class="form-control"><input type="number" id="nested-depth" min="0" max="10" value="0"></div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">创建文件夹阈值</label>
-                        <div class="form-control">
-                            <input type="number" id="folder-threshold" min="0" max="100" value="1">
-                        </div>
+                        <div class="form-control"><input type="number" id="folder-threshold" min="0" max="100" value="1"></div>
                     </div>
                 </div>
             </section>
 
             <section class="section">
-                <div class="section-header">
-                    <h2 class="section-title">密码列表</h2>
-                </div>
-                <div class="section-content">
-                    <div class="form-group">
-                        <div class="list-editor" id="passwords-list">
-                        </div>
-                    </div>
-                </div>
+                <div class="section-header"><h2 class="section-title">密码列表</h2></div>
+                <div class="section-content"><div class="form-group"><div class="list-editor" id="passwords-list"></div></div></div>
             </section>
 
             <section class="section">
-                <div class="section-header">
-                    <h2 class="section-title">删除文件列表</h2>
-                </div>
-                <div class="section-content">
-                    <div class="form-group">
-                        <div class="list-editor" id="delete-files-list">
-                        </div>
-                    </div>
-                </div>
+                <div class="section-header"><h2 class="section-title">删除文件列表</h2></div>
+                <div class="section-content"><div class="form-group"><div class="list-editor" id="delete-files-list"></div></div></div>
             </section>
 
             <section class="section">
-                <div class="section-header">
-                    <h2 class="section-title">删除文件夹列表</h2>
-                </div>
-                <div class="section-content">
-                    <div class="form-group">
-                        <div class="list-editor" id="delete-folders-list">
-                        </div>
-                    </div>
-                </div>
+                <div class="section-header"><h2 class="section-title">删除文件夹列表</h2></div>
+                <div class="section-content"><div class="form-group"><div class="list-editor" id="delete-folders-list"></div></div></div>
             </section>
         </main>
     </div>

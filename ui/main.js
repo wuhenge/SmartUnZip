@@ -1,15 +1,16 @@
 const invoke = window.__TAURI__?.core?.invoke;
 const openDialog = window.__TAURI__?.dialog?.open;
+const currentWindow = window.__TAURI__?.window?.getCurrentWindow?.();
 
-let config = null;
 let originalConfig = null;
-let defaultExtractorType = '7zip'; // 从后端获取后更新
+let contextMenuRegistered = false;
+let isTogglingContextMenu = false;
+let windowRevealed = false;
 
 function updateSaveButton() {
     const saveBtn = document.getElementById('btn-save');
     const currentConfig = collectForm();
-    const hasChanges = JSON.stringify(currentConfig) !== JSON.stringify(originalConfig);
-    saveBtn.disabled = !hasChanges;
+    saveBtn.disabled = JSON.stringify(currentConfig) === JSON.stringify(originalConfig);
 }
 
 function initTheme() {
@@ -22,7 +23,7 @@ function setTheme(theme) {
     const darkIcon = document.getElementById('theme-icon-dark');
     const lightIcon = document.getElementById('theme-icon-light');
     const themeText = document.getElementById('theme-text');
-    
+
     if (theme === 'light') {
         root.setAttribute('data-theme', 'light');
         darkIcon.style.display = 'none';
@@ -34,82 +35,83 @@ function setTheme(theme) {
         lightIcon.style.display = 'none';
         themeText.textContent = '浅色';
     }
-    
+
     localStorage.setItem('theme', theme);
 }
 
 function toggleTheme() {
     const currentTheme = localStorage.getItem('theme') || 'dark';
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    setTheme(newTheme);
+    setTheme(currentTheme === 'dark' ? 'light' : 'dark');
 }
 
-function showError(message) {
+function showToast(message, success = true) {
     const toast = document.getElementById('toast');
     const toastMessage = document.getElementById('toast-message');
     toastMessage.textContent = message;
-    toast.className = 'toast show';
+    toast.className = 'toast show' + (success ? ' success' : '');
     setTimeout(() => {
         toast.className = 'toast';
-    }, 5000);
+    }, 3000);
 }
 
-/// 根据引擎类型更新路径组可见性
-function updatePathGroupVisibility() {
-    const type = document.getElementById('extractor-type').value;
-    const bzGroup = document.getElementById('bandizip-path-group');
-    const szGroup = document.getElementById('sevenzip-path-group');
+function showError(message) {
+    showToast(message, false);
+}
 
-    if (type === 'bandizip') {
-        bzGroup.classList.remove('path-group-hidden');
-        szGroup.classList.add('path-group-hidden');
-    } else if (type === '7zip') {
-        bzGroup.classList.add('path-group-hidden');
-        szGroup.classList.remove('path-group-hidden');
+async function revealWindow() {
+    if (windowRevealed) {
+        return;
+    }
+    windowRevealed = true;
+    document.body.classList.add('app-ready');
+
+    try {
+        if (currentWindow) {
+            await currentWindow.show();
+            await currentWindow.setFocus();
+        }
+    } catch (error) {
+        console.error('show window failed:', error);
     }
 }
 
 async function init() {
     if (!invoke) {
         showError('Tauri API 不可用');
+        await revealWindow();
         return;
     }
 
     try {
-        defaultExtractorType = await invoke('get_default_extractor_type');
-        config = await invoke('load_config');
-        console.log('Loaded config:', config);
+        const config = await invoke('load_config');
         populateForm(config);
         originalConfig = collectForm();
         document.getElementById('btn-save').disabled = true;
-
         await initContextMenuStatus();
-        updatePathGroupVisibility();
-    } catch (e) {
-        console.error('加载配置失败:', e);
-        showError('加载配置失败: ' + e);
+    } catch (error) {
+        console.error('加载配置失败:', error);
+        showError('加载配置失败: ' + error);
+    } finally {
+        await revealWindow();
     }
 }
-
-// 右键菜单管理
-let contextMenuRegistered = false;
-let isTogglingContextMenu = false;
 
 async function initContextMenuStatus() {
     try {
         contextMenuRegistered = await invoke('check_context_menu');
         document.getElementById('context-menu-toggle').checked = contextMenuRegistered;
-    } catch (e) {
-        console.error('检查右键菜单状态失败:', e);
+    } catch (error) {
+        console.error('检查右键菜单状态失败:', error);
     }
 }
 
 async function onContextMenuToggle() {
-    if (isTogglingContextMenu) return;
-    
+    if (isTogglingContextMenu) {
+        return;
+    }
+
     const toggle = document.getElementById('context-menu-toggle');
     const targetState = toggle.checked;
-    
     isTogglingContextMenu = true;
     toggle.disabled = true;
 
@@ -123,9 +125,9 @@ async function onContextMenuToggle() {
             contextMenuRegistered = false;
             showToast('右键菜单已禁用');
         }
-    } catch (e) {
-        console.error('操作失败:', e);
-        showToast('操作失败: ' + e, false);
+    } catch (error) {
+        console.error('操作失败:', error);
+        showToast('操作失败: ' + error, false);
         toggle.checked = contextMenuRegistered;
     } finally {
         isTogglingContextMenu = false;
@@ -134,11 +136,9 @@ async function onContextMenuToggle() {
 }
 
 function populateForm(config) {
-    document.getElementById('extractor-type').value = config.ExtractorType || defaultExtractorType;
+    document.getElementById('seven-zip-path').value = config.SevenZipPath || '';
     document.getElementById('output-encoding').value = config.OutputEncoding || 'gbk';
     document.getElementById('output-directory').value = config.OutputDirectory || '';
-    document.getElementById('seven-zip-path').value = config.SevenZipPath || '';
-    document.getElementById('seven-zip-path-7z').value = config.SevenZipPath7z || '';
     document.getElementById('nested-depth').value = config.NestedArchiveDepth || 0;
     document.getElementById('auto-exit').checked = config.AutoExit || false;
     document.getElementById('extract-nested').checked = config.ExtractNestedFolders || false;
@@ -148,17 +148,17 @@ function populateForm(config) {
     document.getElementById('delete-source').checked = config.DeleteSourceAfterExtract || false;
     document.getElementById('open-folder').checked = config.OpenFolderAfterExtract || false;
     document.getElementById('debug-mode').checked = config.DebugMode || false;
-    
+
     renderList('passwords-list', config.Passwords || [], 'password');
     renderList('delete-files-list', config.DeleteFiles || [], 'file');
     renderList('delete-folders-list', config.DeleteFolders || [], 'folder');
-    
+
     setupChangeListeners();
 }
 
 function setupChangeListeners() {
     const inputs = document.querySelectorAll('input[type="text"], input[type="number"], input[type="checkbox"], select');
-    inputs.forEach(input => {
+    inputs.forEach((input) => {
         input.addEventListener('input', updateSaveButton);
         input.addEventListener('change', updateSaveButton);
     });
@@ -167,10 +167,10 @@ function setupChangeListeners() {
 function renderList(containerId, items, type) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
-    
+
     const listItems = document.createElement('div');
     listItems.className = 'list-items';
-    
+
     items.forEach((item, index) => {
         const itemEl = document.createElement('div');
         itemEl.className = 'list-item';
@@ -185,9 +185,9 @@ function renderList(containerId, items, type) {
         `;
         listItems.appendChild(itemEl);
     });
-    
+
     container.appendChild(listItems);
-    
+
     const addBtn = document.createElement('button');
     addBtn.className = 'list-add';
     addBtn.innerHTML = `
@@ -198,29 +198,29 @@ function renderList(containerId, items, type) {
         添加${type === 'password' ? '密码' : type === 'file' ? '文件' : '文件夹'}
     `;
     container.appendChild(addBtn);
-    
-    listItems.querySelectorAll('.list-item-remove').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const index = parseInt(e.currentTarget.dataset.index);
+
+    listItems.querySelectorAll('.list-item-remove').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+            const index = parseInt(event.currentTarget.dataset.index, 10);
             items.splice(index, 1);
             renderList(containerId, items, type);
             updateSaveButton();
         });
     });
-    
-    listItems.querySelectorAll('input').forEach(input => {
+
+    listItems.querySelectorAll('input').forEach((input) => {
         input.addEventListener('input', updateSaveButton);
-        input.addEventListener('change', (e) => {
-            const index = parseInt(e.target.dataset.index);
-            items[index] = e.target.value;
+        input.addEventListener('change', (event) => {
+            const index = parseInt(event.target.dataset.index, 10);
+            items[index] = event.target.value;
             updateSaveButton();
         });
     });
-    
+
     addBtn.addEventListener('click', () => {
         items.push('');
         renderList(containerId, items, type);
-        const inputs = listItems.querySelectorAll('input');
+        const inputs = container.querySelectorAll('.list-item input');
         if (inputs.length > 0) {
             inputs[inputs.length - 1].focus();
         }
@@ -236,11 +236,9 @@ function escapeHtml(text) {
 
 function collectForm() {
     return {
-        ExtractorType: document.getElementById('extractor-type').value,
+        SevenZipPath: document.getElementById('seven-zip-path').value,
         OutputEncoding: document.getElementById('output-encoding').value,
         OutputDirectory: document.getElementById('output-directory').value,
-        SevenZipPath: document.getElementById('seven-zip-path').value,
-        SevenZipPath7z: document.getElementById('seven-zip-path-7z').value,
         AutoExit: document.getElementById('auto-exit').checked,
         ExtractNestedFolders: document.getElementById('extract-nested').checked,
         DebugMode: document.getElementById('debug-mode').checked,
@@ -248,8 +246,8 @@ function collectForm() {
         FlattenWrapperFolder: document.getElementById('flatten-wrapper').checked,
         DeleteSourceAfterExtract: document.getElementById('delete-source').checked,
         OpenFolderAfterExtract: document.getElementById('open-folder').checked,
-        NestedArchiveDepth: parseInt(document.getElementById('nested-depth').value) || 0,
-        CreateFolderThreshold: parseInt(document.getElementById('folder-threshold').value) || 1,
+        NestedArchiveDepth: parseInt(document.getElementById('nested-depth').value, 10) || 0,
+        CreateFolderThreshold: parseInt(document.getElementById('folder-threshold').value, 10) || 1,
         Passwords: collectListItems('passwords-list'),
         DeleteFiles: collectListItems('delete-files-list'),
         DeleteFolders: collectListItems('delete-folders-list'),
@@ -259,19 +257,9 @@ function collectForm() {
 function collectListItems(containerId) {
     const container = document.getElementById(containerId);
     const inputs = container.querySelectorAll('.list-item input');
-    return Array.from(inputs).map(input => input.value).filter(v => v.trim() !== '');
-}
-
-function showToast(message, success = true) {
-    const toast = document.getElementById('toast');
-    const toastMessage = document.getElementById('toast-message');
-    
-    toastMessage.textContent = message;
-    toast.className = 'toast show' + (success ? ' success' : '');
-    
-    setTimeout(() => {
-        toast.className = 'toast';
-    }, 3000);
+    return Array.from(inputs)
+        .map((input) => input.value)
+        .filter((value) => value.trim() !== '');
 }
 
 document.getElementById('btn-save').addEventListener('click', async () => {
@@ -281,70 +269,39 @@ document.getElementById('btn-save').addEventListener('click', async () => {
         originalConfig = settings;
         document.getElementById('btn-save').disabled = true;
         showToast('保存成功');
-    } catch (e) {
-        console.error('保存失败:', e);
-        showToast('保存失败: ' + e, false);
+    } catch (error) {
+        console.error('保存失败:', error);
+        showToast('保存失败: ' + error, false);
     }
 });
 
-// 引擎类型切换
-document.getElementById('extractor-type').addEventListener('change', () => {
-    updatePathGroupVisibility();
-    updateSaveButton();
-});
-
-// Bandizip 文件选择
-document.getElementById('btn-browse-bz').addEventListener('click', async () => {
-    if (!openDialog) {
-        showError('文件对话框不可用');
-        return;
-    }
-    try {
-        const selected = await openDialog({
-            multiple: false,
-            filters: [{
-                name: 'Executable',
-                extensions: ['exe']
-            }]
-        });
-        if (selected) {
-            document.getElementById('seven-zip-path').value = selected;
-            validatePath(selected, 'bandizip');
-        }
-    } catch (e) {
-        console.error('选择文件失败:', e);
-    }
-});
-
-// 7-Zip 文件选择
 document.getElementById('btn-browse-7z').addEventListener('click', async () => {
     if (!openDialog) {
         showError('文件对话框不可用');
         return;
     }
+
     try {
         const selected = await openDialog({
             multiple: false,
-            filters: [{
-                name: 'Executable',
-                extensions: ['exe', '*']
-            }]
+            filters: [{ name: 'Executable', extensions: ['exe', '*'] }],
         });
         if (selected) {
-            document.getElementById('seven-zip-path-7z').value = selected;
-            validatePath(selected, '7zip');
+            document.getElementById('seven-zip-path').value = selected;
+            await validatePath(selected);
+            updateSaveButton();
         }
-    } catch (e) {
-        console.error('选择文件失败:', e);
+    } catch (error) {
+        console.error('选择文件失败:', error);
     }
 });
 
-// 输出目录选择
 document.getElementById('btn-browse-output').addEventListener('click', async () => {
     if (!openDialog) {
         showError('文件对话框不可用');
         return;
     }
+
     try {
         const selected = await openDialog({
             directory: true,
@@ -354,18 +311,18 @@ document.getElementById('btn-browse-output').addEventListener('click', async () 
             document.getElementById('output-directory').value = selected;
             updateSaveButton();
         }
-    } catch (e) {
-        console.error('选择目录失败:', e);
+    } catch (error) {
+        console.error('选择目录失败:', error);
     }
 });
 
-async function validatePath(path, extractorType) {
+async function validatePath(path) {
     showValidationLoading();
     try {
-        const result = await invoke('validate_extractor_path', { path, extractorType });
+        const result = await invoke('validate_7zip_path', { path });
         showValidationModal(result.valid, result.message);
-    } catch (e) {
-        showValidationModal(false, '验证失败: ' + e);
+    } catch (error) {
+        showValidationModal(false, '验证失败: ' + error);
     }
 }
 
@@ -387,19 +344,13 @@ function showValidationLoading() {
                     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
                 </svg>
             </div>
-            <div class="modal-header">
-                <h3>验证中...</h3>
-            </div>
-            <div class="modal-body">
-                <p>正在验证解压工具，请稍候</p>
-            </div>
+            <div class="modal-header"><h3>验证中...</h3></div>
+            <div class="modal-body"><p>正在验证 7-Zip，请稍候</p></div>
         </div>
     `;
 
     document.body.appendChild(overlay);
-    requestAnimationFrame(() => {
-        overlay.classList.add('show');
-    });
+    requestAnimationFrame(() => overlay.classList.add('show'));
 }
 
 function showValidationModal(success, message) {
@@ -417,15 +368,9 @@ function showValidationModal(success, message) {
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
         <div class="modal validation-modal">
-            <div class="validation-icon-wrapper">
-                ${iconSvg}
-            </div>
-            <div class="modal-header">
-                <h3>${success ? '验证成功' : '验证失败'}</h3>
-            </div>
-            <div class="modal-body">
-                <p>${message}</p>
-            </div>
+            <div class="validation-icon-wrapper">${iconSvg}</div>
+            <div class="modal-header"><h3>${success ? '验证成功' : '验证失败'}</h3></div>
+            <div class="modal-body"><p>${message}</p></div>
             <div class="modal-footer">
                 <button class="btn btn-primary" id="validation-modal-confirm">确定</button>
             </div>
@@ -433,38 +378,28 @@ function showValidationModal(success, message) {
     `;
 
     document.body.appendChild(overlay);
-
-    requestAnimationFrame(() => {
-        overlay.classList.add('show');
-    });
+    requestAnimationFrame(() => overlay.classList.add('show'));
 
     document.getElementById('validation-modal-confirm').addEventListener('click', () => {
         overlay.classList.remove('show');
-        setTimeout(() => {
-            overlay.remove();
-        }, 200);
+        setTimeout(() => overlay.remove(), 200);
     });
 
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
+    overlay.addEventListener('click', (event) => {
+        if (event.target === overlay) {
             overlay.classList.remove('show');
-            setTimeout(() => {
-                overlay.remove();
-            }, 200);
+            setTimeout(() => overlay.remove(), 200);
         }
     });
 }
 
 document.getElementById('btn-theme').addEventListener('click', toggleTheme);
-
 document.getElementById('btn-check-update').addEventListener('click', checkForUpdates);
-
 document.getElementById('context-menu-toggle').addEventListener('change', onContextMenuToggle);
 
 async function checkForUpdates() {
     const btn = document.getElementById('btn-check-update');
     const originalContent = btn.innerHTML;
-    
     btn.innerHTML = `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning">
             <path d="M23 4v6h-6"/>
@@ -474,19 +409,18 @@ async function checkForUpdates() {
         检查中...
     `;
     btn.disabled = true;
-    
+
     try {
         const result = await invoke('check_for_updates');
-        
         if (result.error) {
             showUpdateErrorModal(result.error);
         } else if (result.has_update) {
             showUpdateModal(result.current_version, result.latest_version, result.download_url);
         } else {
-            showToast(`当前版本 v${result.current_version} 已是最新`, true);
+            showToast(`当前版本 v${result.current_version} 已是最新`);
         }
-    } catch (e) {
-        showUpdateErrorModal(e.toString());
+    } catch (error) {
+        showUpdateErrorModal(error.toString());
     } finally {
         btn.innerHTML = originalContent;
         btn.disabled = false;
@@ -499,19 +433,15 @@ function showUpdateModal(currentVersion, latestVersion, downloadUrl) {
         existingModal.remove();
     }
 
-    const iconSvg = `<svg class="validation-icon success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>`;
-
     const overlay = document.createElement('div');
     overlay.id = 'update-modal-overlay';
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
         <div class="modal validation-modal">
             <div class="validation-icon-wrapper">
-                ${iconSvg}
+                <svg class="validation-icon success" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>
             </div>
-            <div class="modal-header">
-                <h3>发现新版本</h3>
-            </div>
+            <div class="modal-header"><h3>发现新版本</h3></div>
             <div class="modal-body">
                 <p>当前版本: v${currentVersion}</p>
                 <p>最新版本: v${latestVersion}</p>
@@ -522,33 +452,23 @@ function showUpdateModal(currentVersion, latestVersion, downloadUrl) {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(overlay);
-    
-    requestAnimationFrame(() => {
-        overlay.classList.add('show');
-    });
-    
+    requestAnimationFrame(() => overlay.classList.add('show'));
+
     document.getElementById('update-modal-cancel').addEventListener('click', () => {
         overlay.classList.remove('show');
         setTimeout(() => overlay.remove(), 200);
     });
-    
+
     document.getElementById('update-modal-confirm').addEventListener('click', async () => {
         try {
             await invoke('open_url', { url: downloadUrl });
-        } catch (e) {
+        } catch {
             window.open(downloadUrl, '_blank');
         }
         overlay.classList.remove('show');
         setTimeout(() => overlay.remove(), 200);
-    });
-    
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-            overlay.classList.remove('show');
-            setTimeout(() => overlay.remove(), 200);
-        }
     });
 }
 
@@ -559,56 +479,42 @@ function showUpdateErrorModal(errorMessage) {
         existingModal.remove();
     }
 
-    const iconSvg = `<svg class="validation-icon error" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
-
     const overlay = document.createElement('div');
     overlay.id = 'update-error-modal-overlay';
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
         <div class="modal validation-modal">
             <div class="validation-icon-wrapper">
-                ${iconSvg}
+                <svg class="validation-icon error" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
             </div>
-            <div class="modal-header">
-                <h3>检查更新失败</h3>
-            </div>
+            <div class="modal-header"><h3>检查更新失败</h3></div>
             <div class="modal-body">
                 <p>无法连接到更新服务器</p>
                 <p style="margin-top: 8px; color: var(--text-secondary); font-size: 13px;">${errorMessage}</p>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-ghost" id="update-error-modal-close">关闭</button>
-                <button class="btn btn-primary" id="update-error-modal-open">打开开源地址</button>
+                <button class="btn btn-primary" id="update-error-modal-open">打开项目主页</button>
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(overlay);
-    
-    requestAnimationFrame(() => {
-        overlay.classList.add('show');
-    });
-    
+    requestAnimationFrame(() => overlay.classList.add('show'));
+
     document.getElementById('update-error-modal-close').addEventListener('click', () => {
         overlay.classList.remove('show');
         setTimeout(() => overlay.remove(), 200);
     });
-    
+
     document.getElementById('update-error-modal-open').addEventListener('click', async () => {
         try {
             await invoke('open_url', { url: GITHUB_URL });
-        } catch (e) {
+        } catch {
             window.open(GITHUB_URL, '_blank');
         }
         overlay.classList.remove('show');
         setTimeout(() => overlay.remove(), 200);
-    });
-    
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-            overlay.classList.remove('show');
-            setTimeout(() => overlay.remove(), 200);
-        }
     });
 }
 

@@ -3,59 +3,81 @@ use std::path::PathBuf;
 
 use crate::update;
 
-/// 默认解压引擎类型，修改此值即可切换默认引擎
-const DEFAULT_EXTRACTOR_TYPE: &str = "7zip";
-/// 默认输出编码（Windows 控制台为 GBK，其他平台为 UTF-8）
-#[cfg(windows)]
-const DEFAULT_OUTPUT_ENCODING: &str = "gbk";
-#[cfg(not(windows))]
-const DEFAULT_OUTPUT_ENCODING: &str = "utf-8";
+const DEFAULT_OUTPUT_ENCODING: &str = if cfg!(windows) { "gbk" } else { "utf-8" };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
-    #[serde(rename = "ExtractorType", default = "default_extractor_type")]
-    pub extractor_type: String,
     #[serde(rename = "OutputEncoding", default = "default_output_encoding")]
     pub output_encoding: String,
-    #[serde(rename = "SevenZipPath", default)]
+    #[serde(rename = "SevenZipPath", default = "default_7zip_path")]
     pub seven_zip_path: String,
-    #[serde(rename = "SevenZipPath7z", default)]
-    pub seven_zip_path_7z: String,
     #[serde(rename = "OutputDirectory", default)]
     pub output_directory: String,
-    #[serde(rename = "AutoExit")]
+    #[serde(rename = "AutoExit", default)]
     pub auto_exit: bool,
-    #[serde(rename = "ExtractNestedFolders")]
+    #[serde(rename = "ExtractNestedFolders", default)]
     pub extract_nested_folders: bool,
-    #[serde(rename = "DebugMode")]
+    #[serde(rename = "DebugMode", default)]
     pub debug_mode: bool,
-    #[serde(rename = "DeleteEmptyFolders")]
+    #[serde(rename = "DeleteEmptyFolders", default)]
     pub delete_empty_folders: bool,
-    #[serde(rename = "FlattenWrapperFolder")]
+    #[serde(rename = "FlattenWrapperFolder", default)]
     pub flatten_wrapper_folder: bool,
-    #[serde(rename = "DeleteSourceAfterExtract")]
+    #[serde(rename = "DeleteSourceAfterExtract", default)]
     pub delete_source_after_extract: bool,
-    #[serde(rename = "OpenFolderAfterExtract")]
+    #[serde(rename = "OpenFolderAfterExtract", default)]
     pub open_folder_after_extract: bool,
-    #[serde(rename = "NestedArchiveDepth")]
+    #[serde(rename = "NestedArchiveDepth", default)]
     pub nested_archive_depth: u32,
-    #[serde(rename = "CreateFolderThreshold")]
+    #[serde(rename = "CreateFolderThreshold", default = "default_create_folder_threshold")]
     pub create_folder_threshold: u32,
-    #[serde(rename = "Passwords")]
+    #[serde(rename = "Passwords", default)]
     pub passwords: Vec<String>,
-    #[serde(rename = "DeleteFiles")]
+    #[serde(rename = "DeleteFiles", default)]
     pub delete_files: Vec<String>,
-    #[serde(rename = "DeleteFolders")]
+    #[serde(rename = "DeleteFolders", default)]
     pub delete_folders: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LegacyAppSettings {
+    #[serde(rename = "OutputEncoding", default)]
+    output_encoding: String,
+    #[serde(rename = "SevenZipPath", default)]
+    seven_zip_path: String,
+    #[serde(rename = "OutputDirectory", default)]
+    output_directory: String,
+    #[serde(rename = "AutoExit", default)]
+    auto_exit: bool,
+    #[serde(rename = "ExtractNestedFolders", default)]
+    extract_nested_folders: bool,
+    #[serde(rename = "DebugMode", default)]
+    debug_mode: bool,
+    #[serde(rename = "DeleteEmptyFolders", default)]
+    delete_empty_folders: bool,
+    #[serde(rename = "FlattenWrapperFolder", default)]
+    flatten_wrapper_folder: bool,
+    #[serde(rename = "DeleteSourceAfterExtract", default)]
+    delete_source_after_extract: bool,
+    #[serde(rename = "OpenFolderAfterExtract", default)]
+    open_folder_after_extract: bool,
+    #[serde(rename = "NestedArchiveDepth", default)]
+    nested_archive_depth: u32,
+    #[serde(rename = "CreateFolderThreshold", default = "default_create_folder_threshold")]
+    create_folder_threshold: u32,
+    #[serde(rename = "Passwords", default)]
+    passwords: Vec<String>,
+    #[serde(rename = "DeleteFiles", default)]
+    delete_files: Vec<String>,
+    #[serde(rename = "DeleteFolders", default)]
+    delete_folders: Vec<String>,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            extractor_type: "7zip".to_string(),
             output_encoding: DEFAULT_OUTPUT_ENCODING.to_string(),
-            seven_zip_path: default_bandizip_path(),
-            seven_zip_path_7z: default_7zip_path(),
+            seven_zip_path: default_7zip_path(),
             output_directory: String::new(),
             auto_exit: false,
             extract_nested_folders: false,
@@ -73,22 +95,38 @@ impl Default for AppSettings {
     }
 }
 
-fn default_extractor_type() -> String {
-    "7zip".to_string()
+impl From<LegacyAppSettings> for AppSettings {
+    fn from(legacy: LegacyAppSettings) -> Self {
+        Self {
+            output_encoding: if legacy.output_encoding.is_empty() {
+                DEFAULT_OUTPUT_ENCODING.to_string()
+            } else {
+                legacy.output_encoding
+            },
+            seven_zip_path: legacy.seven_zip_path,
+            output_directory: legacy.output_directory,
+            auto_exit: legacy.auto_exit,
+            extract_nested_folders: legacy.extract_nested_folders,
+            debug_mode: legacy.debug_mode,
+            delete_empty_folders: legacy.delete_empty_folders,
+            flatten_wrapper_folder: legacy.flatten_wrapper_folder,
+            delete_source_after_extract: legacy.delete_source_after_extract,
+            open_folder_after_extract: legacy.open_folder_after_extract,
+            nested_archive_depth: legacy.nested_archive_depth,
+            create_folder_threshold: legacy.create_folder_threshold,
+            passwords: legacy.passwords,
+            delete_files: legacy.delete_files,
+            delete_folders: legacy.delete_folders,
+        }
+    }
 }
 
 fn default_output_encoding() -> String {
     DEFAULT_OUTPUT_ENCODING.to_string()
 }
 
-#[cfg(windows)]
-fn default_bandizip_path() -> String {
-    r"C:\Program Files\Bandizip\bz.exe".to_string()
-}
-
-#[cfg(not(windows))]
-fn default_bandizip_path() -> String {
-    String::new()
+fn default_create_folder_threshold() -> u32 {
+    1
 }
 
 #[cfg(windows)]
@@ -96,12 +134,7 @@ fn default_7zip_path() -> String {
     r"C:\Program Files\7-Zip\7z.exe".to_string()
 }
 
-#[cfg(target_os = "macos")]
-fn default_7zip_path() -> String {
-    String::new()
-}
-
-#[cfg(target_os = "linux")]
+#[cfg(not(windows))]
 fn default_7zip_path() -> String {
     String::new()
 }
@@ -112,15 +145,21 @@ struct ConfigFile {
     app_settings: AppSettings,
 }
 
+#[derive(Deserialize)]
+struct LegacyConfigFile {
+    #[serde(rename = "AppSettings")]
+    app_settings: LegacyAppSettings,
+}
+
 fn config_path() -> PathBuf {
     let exe_path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("."));
     let base_dir = exe_path.parent().unwrap_or_else(|| std::path::Path::new("."));
-    
-    let config_path = base_dir.join("appsettings.json");
-    if config_path.exists() {
-        return config_path;
+
+    let direct_path = base_dir.join("appsettings.json");
+    if direct_path.exists() {
+        return direct_path;
     }
-    
+
     let mut current = base_dir.to_path_buf();
     while let Some(parent) = current.parent() {
         let candidate = parent.join("appsettings.json");
@@ -129,8 +168,8 @@ fn config_path() -> PathBuf {
         }
         current = parent.to_path_buf();
     }
-    
-    config_path
+
+    direct_path
 }
 
 #[tauri::command]
@@ -141,7 +180,7 @@ pub fn get_config_path() -> String {
 #[tauri::command]
 pub fn load_config() -> Result<AppSettings, String> {
     let config_path = config_path();
-    
+
     if !config_path.exists() {
         let default_config = ConfigFile {
             app_settings: AppSettings::default(),
@@ -153,20 +192,16 @@ pub fn load_config() -> Result<AppSettings, String> {
         return Ok(AppSettings::default());
     }
 
-    let content = std::fs::read_to_string(&config_path)
-        .map_err(|e| format!("读取配置文件失败: {}", e))?;
-    
-    let config: ConfigFile = serde_json::from_str(&content)
-        .map_err(|e| format!("解析配置文件失败: {}", e))?;
-    
-    let mut settings = config.app_settings;
-    
-    // 兼容旧配置：将无效的 "auto" 修正为 "bandizip"
-    if !matches!(settings.extractor_type.as_str(), "bandizip" | "7zip") {
-        settings.extractor_type = DEFAULT_EXTRACTOR_TYPE.to_string();
+    let content =
+        std::fs::read_to_string(&config_path).map_err(|e| format!("读取配置文件失败: {}", e))?;
+
+    if let Ok(config) = serde_json::from_str::<ConfigFile>(&content) {
+        return Ok(config.app_settings);
     }
-    
-    Ok(settings)
+
+    let legacy: LegacyConfigFile =
+        serde_json::from_str(&content).map_err(|e| format!("解析配置文件失败: {}", e))?;
+    Ok(legacy.app_settings.into())
 }
 
 #[tauri::command]
@@ -177,8 +212,7 @@ pub fn save_config(settings: AppSettings) -> Result<(), String> {
     };
     let content = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("序列化配置失败: {}", e))?;
-    std::fs::write(&config_path, content)
-        .map_err(|e| format!("保存配置文件失败: {}", e))?;
+    std::fs::write(&config_path, content).map_err(|e| format!("保存配置文件失败: {}", e))?;
     Ok(())
 }
 
@@ -189,7 +223,7 @@ pub struct ValidationResult {
 }
 
 #[tauri::command]
-pub fn validate_extractor_path(path: String, extractor_type: String) -> ValidationResult {
+pub fn validate_7zip_path(path: String) -> ValidationResult {
     if !std::path::Path::new(&path).exists() {
         return ValidationResult {
             valid: false,
@@ -203,20 +237,10 @@ pub fn validate_extractor_path(path: String, extractor_type: String) -> Validati
         .to_string_lossy()
         .to_lowercase();
 
-    let expected = match extractor_type.as_str() {
-        "bandizip" => vec!["bz.exe", "bz"],
-        "7zip" => vec!["7z.exe", "7z", "7zz"],
-        _ => vec![],
-    };
-
-    if !expected.contains(&file_name.as_str()) {
+    if !matches!(file_name.as_str(), "7z.exe" | "7z" | "7zz") {
         return ValidationResult {
             valid: false,
-            message: format!(
-                "应选择 {} 的可执行文件（{}）",
-                extractor_type,
-                expected.join(" / ")
-            ),
+            message: "请选择 7z.exe / 7z / 7zz".to_string(),
         };
     }
 
@@ -239,11 +263,6 @@ pub fn validate_extractor_path(path: String, extractor_type: String) -> Validati
             message: format!("验证失败: {}", e),
         },
     }
-}
-
-#[tauri::command]
-pub fn get_default_extractor_type() -> String {
-    DEFAULT_EXTRACTOR_TYPE.to_string()
 }
 
 #[tauri::command]
