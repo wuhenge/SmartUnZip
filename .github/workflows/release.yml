@@ -67,7 +67,7 @@ jobs:
           fi
 
       - name: Build Tauri
-        uses: tauri-apps/tauri-action@v0.5
+        uses: tauri-apps/tauri-action@v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -79,40 +79,40 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: smartunzip-windows-nsis
-          path: src-tauri/target/release/bundle/nsis/*.exe
-          if-no-files-found: warn
+          path: target/release/bundle/nsis/*.exe
+          if-no-files-found: error
 
       - name: Upload artifacts - Windows (MSI)
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: smartunzip-windows-msi
-          path: src-tauri/target/release/bundle/msi/*.msi
-          if-no-files-found: warn
+          path: target/release/bundle/msi/*.msi
+          if-no-files-found: error
 
       - name: Upload artifacts - macOS (dmg)
         if: startsWith(matrix.platform, 'macos')
         uses: actions/upload-artifact@v4
         with:
           name: smartunzip-macos-${{ matrix.target }}
-          path: src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-          if-no-files-found: warn
+          path: target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          if-no-files-found: error
 
       - name: Upload artifacts - Linux (deb)
         if: matrix.platform == 'ubuntu-22.04'
         uses: actions/upload-artifact@v4
         with:
           name: smartunzip-linux-deb
-          path: src-tauri/target/release/bundle/deb/*.deb
-          if-no-files-found: warn
+          path: target/release/bundle/deb/*.deb
+          if-no-files-found: error
 
       - name: Upload artifacts - Linux (AppImage)
         if: matrix.platform == 'ubuntu-22.04'
         uses: actions/upload-artifact@v4
         with:
           name: smartunzip-linux-appimage
-          path: src-tauri/target/release/bundle/appimage/*.AppImage
-          if-no-files-found: warn
+          path: target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
 
       - name: Create portable package - Windows
         if: matrix.platform == 'windows-latest'
@@ -121,11 +121,11 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $version = $tag -replace '^v', ''
           $zipName = "smartunzip_${version}_x64_zh-CN_portable.zip"
-          $tempDir = "src-tauri/target/release/portable"
+          $tempDir = "target/release/portable"
           New-Item -ItemType Directory -Force -Path $tempDir
-          Copy-Item "src-tauri/target/release/smartunzip.exe" "$tempDir/"
+          Copy-Item "target/release/smartunzip.exe" "$tempDir/"
           Copy-Item "target/release/smartunzip-cli.exe" "$tempDir/"
-          Compress-Archive -Path "$tempDir/*" -DestinationPath "src-tauri/target/release/$zipName"
+          Compress-Archive -Path "$tempDir/*" -DestinationPath "target/release/$zipName"
 
 
       - name: Upload portable artifact - Windows
@@ -133,8 +133,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: smartunzip-windows-portable
-          path: src-tauri/target/release/*.zip
-          if-no-files-found: warn
+          path: target/release/*.zip
+          if-no-files-found: error
 
 
   release:
