@@ -15,6 +15,9 @@ pub fn delete_file(
         return;
     }
     for keyword in keywords {
+        if keyword.is_empty() {
+            continue;
+        }
         if file_name.contains(keyword.as_str()) {
             if let Err(e) = std::fs::remove_file(path) {
                 ui.warn(&format!("删除文件失败 {file_name}: {e}"));
@@ -36,6 +39,9 @@ pub fn delete_folder(
         return;
     }
     for keyword in keywords {
+        if keyword.is_empty() {
+            continue;
+        }
         if folder_name.contains(keyword.as_str()) {
             if let Err(e) = std::fs::remove_dir_all(path) {
                 ui.warn(&format!("删除文件夹失败 {folder_name}: {e}"));
@@ -345,11 +351,31 @@ fn move_nested_contents(src: &str, dst: &str) {
             let src_path = entry.path();
             let name = src_path.file_name().unwrap_or_default();
             let dst_path = Path::new(dst).join(name);
-            
+
             if src_path.is_dir() {
-                let _ = std::fs::rename(&src_path, &dst_path);
+                if std::fs::rename(&src_path, &dst_path).is_err() {
+                    copy_dir_recursive(&src_path, &dst_path);
+                    let _ = std::fs::remove_dir_all(&src_path);
+                }
+            } else if std::fs::rename(&src_path, &dst_path).is_err() {
+                if std::fs::copy(&src_path, &dst_path).is_ok() {
+                    let _ = std::fs::remove_file(&src_path);
+                }
+            }
+        }
+    }
+}
+
+fn copy_dir_recursive(src: &Path, dst: &Path) {
+    let _ = std::fs::create_dir_all(dst);
+    if let Ok(entries) = std::fs::read_dir(src) {
+        for entry in entries.flatten() {
+            let src_path = entry.path();
+            let dst_path = dst.join(entry.file_name());
+            if src_path.is_dir() {
+                copy_dir_recursive(&src_path, &dst_path);
             } else {
-                let _ = std::fs::rename(&src_path, &dst_path);
+                let _ = std::fs::copy(&src_path, &dst_path);
             }
         }
     }
@@ -542,9 +568,20 @@ fn flatten_wrapper_folder(dir: &str, ui: &Arc<crate::ui::ConsoleUi>) -> Option<S
     let temp_dest = parent.join(format!("_{folder_name}_tmp"));
     
     if dest.exists() {
-        let _ = std::fs::rename(&entry_path, &temp_dest);
-        let _ = std::fs::remove_dir_all(&dest);
-        let _ = std::fs::rename(&temp_dest, &dest);
+        if std::fs::rename(&entry_path, &temp_dest).is_err() {
+            ui.warn(&format!("提升文件夹失败: 无法移动源文件夹"));
+            return None;
+        }
+        if std::fs::remove_dir_all(&dest).is_err() {
+            // Rollback: move temp back
+            let _ = std::fs::rename(&temp_dest, &entry_path);
+            ui.warn(&format!("提升文件夹失败: 无法删除目标文件夹"));
+            return None;
+        }
+        if let Err(e) = std::fs::rename(&temp_dest, &dest) {
+            ui.warn(&format!("提升文件夹失败: {}", e));
+            return None;
+        }
     } else if let Err(e) = std::fs::rename(&entry_path, &dest) {
         ui.warn(&format!("提升文件夹失败: {}", e));
         return None;

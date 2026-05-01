@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const GITHUB_API_URL: &str = "https://api.github.com/repos/wuhenge/SmartUnZip/releases/latest";
 const GITHUB_RELEASES_URL: &str = "https://github.com/wuhenge/SmartUnZip/releases";
+const GITHUB_LATEST_URL: &str = "https://github.com/wuhenge/SmartUnZip/releases/latest";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateInfo {
@@ -47,44 +47,65 @@ pub fn check_update() -> UpdateInfo {
 }
 
 fn fetch_latest_version() -> Result<String, String> {
-    let response = ureq::get(GITHUB_API_URL)
+    let response = ureq::get(GITHUB_LATEST_URL)
         .set("User-Agent", &format!("SmartUnZip/{}", get_current_version()))
-        .set("Accept", "application/vnd.github.v3+json")
         .call()
         .map_err(|e| format!("网络请求失败: {}", e))?;
 
-    let json: serde_json::Value = response
-        .into_json()
-        .map_err(|e| format!("解析响应失败: {}", e))?;
+    let body = response
+        .into_string()
+        .map_err(|e| format!("读取响应失败: {}", e))?;
 
-    let tag_name = json["tag_name"]
-        .as_str()
-        .ok_or("无法获取版本信息")?;
-
-    let version = tag_name.trim_start_matches('v').to_string();
-    Ok(version)
+    parse_version_from_html(&body)
 }
 
-fn compare_versions(current: &str, latest: &str) -> bool {
-    let parse_version = |v: &str| -> Vec<u32> {
-        v.split('.')
-            .filter_map(|s| s.parse().ok())
-            .collect()
-    };
-
-    let current_parts = parse_version(current);
-    let latest_parts = parse_version(latest);
-
-    for i in 0..std::cmp::max(current_parts.len(), latest_parts.len()) {
-        let current_val = current_parts.get(i).unwrap_or(&0);
-        let latest_val = latest_parts.get(i).unwrap_or(&0);
-
-        if latest_val > current_val {
-            return true;
-        } else if latest_val < current_val {
-            return false;
+fn parse_version_from_html(html: &str) -> Result<String, String> {
+    let mut versions = Vec::new();
+    let mut remaining = html;
+    while let Some(pos) = remaining.find("/releases/tag/") {
+        let after = &remaining[pos + 14..];
+        if let Some(end) = after.find('"') {
+            let tag = &after[..end];
+            let version = tag.trim_start_matches('v');
+            if !version.is_empty()
+                && version
+                    .chars()
+                    .next()
+                    .map_or(false, |c| c.is_ascii_digit())
+            {
+                versions.push(version.to_string());
+            }
+            remaining = &after[end..];
+        } else {
+            break;
         }
     }
 
+    versions
+        .into_iter()
+        .reduce(|a, b| if version_gt(&b, &a) { b } else { a })
+        .ok_or_else(|| "无法从页面获取版本信息".to_string())
+}
+
+/// 逐段数值比较，判断 a 是否大于 b
+fn version_gt(a: &str, b: &str) -> bool {
+    let parse = |v: &str| -> Vec<u32> {
+        v.split('.').filter_map(|s| s.parse().ok()).collect()
+    };
+    let a_parts = parse(a);
+    let b_parts = parse(b);
+    for i in 0..std::cmp::max(a_parts.len(), b_parts.len()) {
+        let a_val = a_parts.get(i).unwrap_or(&0);
+        let b_val = b_parts.get(i).unwrap_or(&0);
+        if a_val > b_val {
+            return true;
+        } else if a_val < b_val {
+            return false;
+        }
+    }
     false
+}
+
+fn compare_versions(current: &str, latest: &str) -> bool {
+    current != latest
 }

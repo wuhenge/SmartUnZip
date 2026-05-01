@@ -154,22 +154,7 @@ struct LegacyConfigFile {
 fn config_path() -> PathBuf {
     let exe_path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("."));
     let base_dir = exe_path.parent().unwrap_or_else(|| std::path::Path::new("."));
-
-    let direct_path = base_dir.join("appsettings.json");
-    if direct_path.exists() {
-        return direct_path;
-    }
-
-    let mut current = base_dir.to_path_buf();
-    while let Some(parent) = current.parent() {
-        let candidate = parent.join("appsettings.json");
-        if candidate.exists() {
-            return candidate;
-        }
-        current = parent.to_path_buf();
-    }
-
-    direct_path
+    base_dir.join("appsettings.json")
 }
 
 #[tauri::command]
@@ -247,15 +232,24 @@ pub fn validate_7zip_path(path: String) -> ValidationResult {
     match std::process::Command::new(&path)
         .arg("--help")
         .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
     {
-        Ok(mut child) => {
-            let _ = child.wait();
-            ValidationResult {
-                valid: true,
-                message: "验证成功".to_string(),
+        Ok(output) => {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let combined = format!("{}{}", stdout, stderr);
+            if combined.contains("7-Zip") || combined.contains("7z") {
+                ValidationResult {
+                    valid: true,
+                    message: "验证成功".to_string(),
+                }
+            } else {
+                ValidationResult {
+                    valid: false,
+                    message: "不是有效的 7-Zip 程序".to_string(),
+                }
             }
         }
         Err(e) => ValidationResult {
@@ -272,7 +266,11 @@ pub fn check_for_updates() -> update::UpdateInfo {
 
 #[tauri::command]
 pub fn open_url(url: String) -> Result<(), String> {
-    open::that(&url).map_err(|e| format!("无法打开链接: {}", e))
+    let trimmed = url.trim();
+    if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+        return Err("仅支持打开 http/https 链接".to_string());
+    }
+    open::that(trimmed).map_err(|e| format!("无法打开链接: {}", e))
 }
 
 #[tauri::command]

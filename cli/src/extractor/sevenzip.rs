@@ -66,11 +66,36 @@ impl Extractor for SevenZipExtractor {
 
         if output.exit_code != 0 {
             anyhow::bail!(
-                "7-Zip 瑙ｅ帇澶辫触 (exit code {}): {}",
+                "7-Zip 解压失败 (exit code {}): {}",
                 output.exit_code,
                 output.stderr.trim()
             );
         }
+
+        // Zip Slip protection: verify all extracted files are within output_dir
+        let base = match std::fs::canonicalize(output_dir) {
+            Ok(p) => p,
+            Err(_) => return Ok(()),
+        };
+        if let Ok(entries) = std::fs::read_dir(output_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Ok(canonical) = std::fs::canonicalize(&path) {
+                    if !canonical.starts_with(&base) {
+                        let _ = if path.is_dir() {
+                            std::fs::remove_dir_all(&path)
+                        } else {
+                            std::fs::remove_file(&path)
+                        };
+                        anyhow::bail!(
+                            "检测到路径穿越攻击，已阻止: {}",
+                            path.display()
+                        );
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 
